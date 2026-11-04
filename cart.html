@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Кошик — Modniy Kozel</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="icon" type="image/png" href="./public/images/logo/logo-mark.png">
+</head>
+<body class="has-nav">
+  <div class="page">
+    <header class="header">
+      <h1 class="page-title">Кошик</h1>
+    </header>
+
+    <main>
+      <div class="section" id="filled" hidden>
+        <div class="cart-list" id="list"></div>
+        <div class="summary">
+          <div class="summary-row"><span>Сума</span><span id="subtotal"></span></div>
+          <div class="summary-row"><span>Доставка</span><span>Нова Пошта</span></div>
+          <p class="summary-note">Вартість доставки за тарифами перевізника</p>
+          <div class="summary-row summary-total"><span>До сплати</span><span id="total"></span></div>
+        </div>
+        <a class="btn" href="./checkout.html">Оформити замовлення</a>
+      </div>
+
+      <div class="empty" id="empty" hidden>
+        <h2 class="empty-title">Кошик порожній</h2>
+        <a class="btn btn-inline" href="./catalog.html">До каталогу</a>
+      </div>
+    </main>
+  </div>
+
+  <nav data-nav="cart" aria-label="Головне меню"></nav>
+
+  <script src="./products.js"></script>
+  <script src="./cart.js"></script>
+  <script src="./app.js"></script>
+  <script>
+    const list = document.getElementById('list');
+
+    function render() {
+      const items = MKCart.getItems();
+      document.getElementById('filled').hidden = items.length === 0;
+      document.getElementById('empty').hidden = items.length > 0;
+
+      list.innerHTML = items.map(({ product: p, size, qty }) => `
+        <article class="cart-item">
+          <a class="cart-thumb" href="./product.html?id=${p.id}">
+            <img src="${MK.esc(p.imageUrl)}" alt="${MK.esc(p.name)}" loading="lazy">
+          </a>
+          <div class="cart-info">
+            <h2 class="cart-name">${MK.esc(p.name)}</h2>
+            <p class="cart-size">Розмір ${MK.esc(size)}${qty > 1 ? ` · ${qty} шт.` : ''}</p>
+            <p class="price cart-price">${MK.formatPrice(p.price * qty)}</p>
+          </div>
+          <button class="icon-btn cart-remove" type="button" data-id="${p.id}" data-size="${MK.esc(size)}"
+            aria-label="Видалити ${MK.esc(p.name)}">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </article>`).join('');
+
+      const total = MK.formatPrice(MKCart.getTotal());
+      document.getElementById('subtotal').textContent = total;
+      document.getElementById('total').textContent = total;
+      MK.refreshCartBadges();
+    }
+
+    list.addEventListener('click', (event) => {
+      const button = event.target.closest('.cart-remove');
+      if (!button) return;
+      MKCart.remove(button.dataset.id, button.dataset.size);
+      render();
+    });
+
+    render();
+    window.addEventListener('pageshow', render);
+  </script>
+</body>
+</html>

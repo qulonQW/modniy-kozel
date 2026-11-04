@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Товар — Modniy Kozel</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="icon" type="image/png" href="./public/images/logo/logo-mark.png">
+</head>
+<body data-back="./catalog.html">
+  <div class="page" id="product" hidden>
+    <div class="product-image">
+      <img id="image" alt="" loading="lazy">
+      <div class="product-bar">
+        <a class="icon-btn back-link" href="./catalog.html" data-back-link aria-label="Назад">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </a>
+        <a class="icon-btn" href="./cart.html" data-cart-link aria-label="Кошик"></a>
+      </div>
+    </div>
+
+    <main class="product-info">
+      <p class="product-brand" id="category"></p>
+      <h1 class="product-name" id="name"></h1>
+      <div class="product-meta">
+        <span class="product-price" id="price"></span>
+        <span id="stock"></span>
+      </div>
+
+      <div class="size-block">
+        <span class="label" id="size-label">Розмір</span>
+        <div class="size-chips" id="sizes" role="group" aria-labelledby="size-label"></div>
+        <span class="field-error" id="size-error" hidden>Оберіть розмір</span>
+      </div>
+
+      <details class="accordion" open>
+        <summary>
+          Опис
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9l7 7 7-7"/></svg>
+        </summary>
+        <p id="description"></p>
+      </details>
+    </main>
+  </div>
+
+  <div class="cta-bar" id="cta-bar" hidden>
+    <button class="btn" type="button" id="cta"></button>
+  </div>
+
+  <div class="page empty" id="not-found" hidden>
+    <h1 class="empty-title">Товар не знайдено</h1>
+    <a class="btn btn-inline" href="./catalog.html">До каталогу</a>
+  </div>
+
+  <script src="./products.js"></script>
+  <script src="./cart.js"></script>
+  <script src="./app.js"></script>
+  <script>
+    const id = new URLSearchParams(location.search).get('id');
+    const product = PRODUCTS.find((p) => p.id === id);
+
+    if (!product) {
+      document.getElementById('not-found').hidden = false;
+    } else {
+      renderProduct(product);
+    }
+
+    function renderProduct(p) {
+      document.title = `${p.name} — Modniy Kozel`;
+      document.body.classList.add('has-cta');
+      document.getElementById('product').hidden = false;
+      document.getElementById('cta-bar').hidden = false;
+
+      const image = document.getElementById('image');
+      image.src = p.imageUrl;
+      image.alt = p.name;
+      document.getElementById('category').textContent = p.category;
+      document.getElementById('name').textContent = p.name;
+      document.getElementById('price').textContent = MK.formatPrice(p.price);
+      document.getElementById('stock').innerHTML = MK.stockLabel(p.inStock);
+      document.getElementById('description').textContent = p.description;
+
+      const sizes = document.getElementById('sizes');
+      const sizeError = document.getElementById('size-error');
+      const cta = document.getElementById('cta');
+      let selected = null;
+      let added = false;
+
+      sizes.innerHTML = p.sizes.map((size) => `
+        <button class="size-chip" type="button" aria-pressed="false" data-size="${MK.esc(size)}"
+          ${p.inStock ? '' : 'disabled'}>${MK.esc(size)}</button>`).join('');
+
+      if (!p.inStock) {
+        cta.textContent = 'Немає в наявності';
+        cta.disabled = true;
+        return;
+      }
+
+      const setAdded = (value) => {
+        added = value;
+        cta.textContent = added ? 'Перейти до кошика' : 'Додати до кошика';
+      };
+      setAdded(false);
+
+      sizes.addEventListener('click', (event) => {
+        const chip = event.target.closest('.size-chip');
+        if (!chip) return;
+        selected = chip.dataset.size;
+        sizes.querySelectorAll('.size-chip').forEach((c) => c.setAttribute('aria-pressed', String(c === chip)));
+        sizeError.hidden = true;
+        setAdded(false);
+      });
+
+      cta.addEventListener('click', () => {
+        if (added) {
+          location.href = './cart.html';
+          return;
+        }
+        if (!selected) {
+          sizeError.hidden = false;
+          MK.haptic('error');
+          return;
+        }
+        MKCart.add(p.id, selected);
+        MK.refreshCartBadges();
+        MK.haptic('success');
+        setAdded(true);
+      });
+    }
+  </script>
+</body>
+</html>

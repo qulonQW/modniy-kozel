@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Оформлення — Modniy Kozel</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="icon" type="image/png" href="./public/images/logo/logo-mark.png">
+</head>
+<body data-back="./cart.html">
+  <div class="page" id="checkout" hidden>
+    <header class="header">
+      <div class="header-start">
+        <a class="icon-btn back-link" href="./cart.html" data-back-link aria-label="Назад">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+        </a>
+        <h1 class="page-title">Оформлення</h1>
+      </div>
+    </header>
+
+    <form class="section" id="form" novalidate>
+      <div class="form-section">
+        <label class="field">
+          <span class="label">Ім'я та прізвище</span>
+          <input class="input" name="name" type="text" autocomplete="name">
+        </label>
+
+        <label class="field">
+          <span class="label">Телефон</span>
+          <span class="phone-field">
+            <span class="phone-prefix">+380</span>
+            <input class="input" name="phone" type="tel" inputmode="numeric" autocomplete="off"
+              placeholder="XX XXX XX XX">
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="label">Місто</span>
+          <input class="input" name="city" type="text" autocomplete="address-level2">
+        </label>
+
+        <label class="field">
+          <span class="label">Відділення НП</span>
+          <input class="input" name="branch" type="text" autocomplete="off">
+        </label>
+      </div>
+
+      <div class="submit-block">
+        <button class="btn" type="submit">Підтвердити замовлення</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="page empty" id="empty" hidden>
+    <h1 class="empty-title">Кошик порожній</h1>
+    <a class="btn btn-inline" href="./catalog.html">До каталогу</a>
+  </div>
+
+  <div class="page success" id="demo-notice" hidden>
+    <h1 class="success-title">Демо-версія.</h1>
+    <p class="success-note">Замовлення не надсилаються.</p>
+    <div class="success-actions">
+      <a class="btn" href="./index.html">Продовжити покупки</a>
+    </div>
+  </div>
+
+  <script src="./products.js"></script>
+  <script src="./cart.js"></script>
+  <script src="./app.js"></script>
+  <script>
+    const form = document.getElementById('form');
+
+    if (MKCart.getCount() === 0) {
+      document.getElementById('empty').hidden = false;
+    } else {
+      document.getElementById('checkout').hidden = false;
+    }
+
+    // Accepts the digits however they were typed or pasted: 50…, 050…, +38050…
+    form.elements.phone.addEventListener('input', (event) => {
+      event.target.value = event.target.value
+        .replace(/\D/g, '')
+        .replace(/^380/, '')
+        .replace(/^0/, '')
+        .slice(0, 9);
+    });
+
+    // Demo only: nothing is sent or saved, and the cart is left as it is.
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      document.getElementById('checkout').hidden = true;
+      document.getElementById('demo-notice').hidden = false;
+      window.scrollTo(0, 0);
+    });
+  </script>
+</body>
+</html>

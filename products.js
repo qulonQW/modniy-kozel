@@ -1,0 +1,86 @@
+// Demo catalogue. Hardcoded: the demo has no backend.
+
+const CATEGORIES = ['Взуття', 'Одяг'];
+
+const SHOE_SIZES = [40, 41, 42, 43, 44, 45];
+const CLOTHING_SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
+
+const PRODUCTS = [
+  {
+    id: 'sneaker-01',
+    name: 'Low-top кросівки, сіро-фіолетові',
+    category: 'Взуття',
+    price: 2499,
+    sizes: SHOE_SIZES,
+    inStock: true,
+    popular: true,
+    imageUrl: './public/images/products/sneaker-01.jpg',
+    description: 'Низькі кросівки на шнурівці з масивною підошвою.',
+  },
+  {
+    id: 'sneaker-02',
+    name: 'Кросівки, чорні з білим',
+    category: 'Взуття',
+    price: 2499,
+    sizes: SHOE_SIZES,
+    inStock: true,
+    popular: true,
+    imageUrl: './public/images/products/sneaker-02.jpg',
+    description: 'Низькі кросівки на шнурівці з контрастною білою підошвою.',
+  },
+  {
+    id: 'tshirt-01',
+    name: 'Футболка, модель 1',
+    category: 'Одяг',
+    price: 600,
+    sizes: CLOTHING_SIZES,
+    inStock: true,
+    popular: true,
+    imageUrl: './public/images/products/tshirt-01.jpg',
+    description: 'Футболка з невеликою нашивкою на грудях.',
+  },
+  {
+    id: 'tshirt-02',
+    name: 'Футболка, модель 2',
+    category: 'Одяг',
+    price: 600,
+    sizes: CLOTHING_SIZES,
+    inStock: true,
+    popular: true,
+    imageUrl: './public/images/products/tshirt-02.jpg',
+    description: 'Футболка з великим принтом на грудях.',
+  },
+  {
+    id: 'tshirt-03',
+    name: 'Футболка, модель 3',
+    category: 'Одяг',
+    price: 600,
+    sizes: CLOTHING_SIZES,
+    inStock: true,
+    popular: false,
+    imageUrl: './public/images/products/tshirt-03.jpg',
+    description: 'Футболка з великим написом на грудях.',
+  },
+  {
+    id: 'tshirt-04',
+    name: 'Футболка, модель 4',
+    category: 'Одяг',
+    price: 600,
+    sizes: CLOTHING_SIZES,
+    inStock: true,
+    popular: false,
+    imageUrl: './public/images/products/tshirt-04.jpg',
+    description: 'Футболка з об’ємним графічним принтом.',
+  },
+  {
+    id: 'tshirt-05',
+    name: 'Футболка, модель 5',
+    category: 'Одяг',
+    price: 600,
+    sizes: CLOTHING_SIZES,
+    inStock: true,
+    popular: false,
+    imageUrl: './public/images/products/tshirt-05.jpg',
+    description: 'Футболка з малим написом на грудях і лінійним принтом унизу.',
+  },
+];
