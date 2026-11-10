@@ -728,3 +728,95 @@ def test_duplicate_flags_survive_db_import_and_rerun_is_idempotent(export, conn,
     report = (out / "report.md").read_text(encoding="utf-8")
     assert "## Possible duplicates" in report and flagged[0]["id"] in report
     assert "supplier_manager" not in report and "t.me" not in report
+
+
+# --- third supplier template (gladky_clothes, Russian posts) ----------------
+
+CLOTHES = tool.load_config(CONFIG_PATH, "gladky_clothes")
+CLOTHES_POST = """‼️НЕТУ В НАЛИЧИЕ The north face худи на флисе
+
+РАЗМЕРЫ: S,M,L
+
+✅ДРОП НОВАЯ ЦЕНА: 899 грн
+✅КУПИТЬ СЕБЕ: 899 грн
+
+🔝ОПТ:
+От 5- 850грн
+От 15- 800 грн
+
+Писать👇
+@example_manager
+
+Замеры и доп фото на теле👇
+https://t.me/example_photos/112"""
+
+
+def build_clothes(export: Export) -> tool.Result:
+    return tool.build_products(export.write(), json.loads(json.dumps(CLOTHES, default=str)))
+
+
+def test_clothes_post_status_prefix_out_of_stock_and_private_prices(export):
+    export.album(CLOTHES_POST, photos=2)
+    result = build_clothes(export)
+    record = only(result)
+
+    assert record["source_channel"] == "gladky_clothes"
+    assert record["title"] == "The north face худи на флисе"
+    assert record["in_stock"] is False
+    assert record["sizes"] == ["S", "M", "L"]
+    assert record["category"] == "Одяг" and record["review_reasons"] == []
+    assert record["price_retail"] == 1200  # 899 + 300, rounded to 10
+    assert result.products[0].cost == {"price_supplier": 899, "price_reference": 899}
+    public = json.dumps(record, ensure_ascii=False)
+    for marker in ("@", "t.me", "Писать", "850", "899", "ОПТ"):
+        assert marker not in public
+
+
+@pytest.mark.parametrize(
+    "first_lines,title,in_stock",
+    [
+        ("❗️СНОВА В ПОЛНОМ НАЛИЧИЕ, ПОЭТОМУ УСПЕВАЙТЕ ЗАРАБОТАТЬ\n\n😍Лампасы от Nike", "Лампасы от Nike", True),
+        ("‼️ Нету в наличие\n😍Худи от The north face на флисе", "Худі от The north face на флисе", False),
+        ("Снижение цены ❗️с сегодняшнего дня\n🤯ХУДИ Manto Gym", "Худі Manto Gym", True),
+        ("😵Хит сезона! Kappa на лампасах", "Kappa на лампасах", True),
+        ("СКИДКА💯\n🤯Штаны плащевка Stone Island", "Штани плащевка Stone Island", True),
+        ("Ширина: 22 см\nСумка через плечо Lacoste", "Сумка через плечо Lacoste", True),
+    ],
+)
+def test_clothes_title_skips_status_and_promo_lines(export, first_lines, title, in_stock):
+    export.album(CLOTHES_POST.replace("‼️НЕТУ В НАЛИЧИЕ The north face худи на флисе", first_lines), photos=1)
+    record = only(build_clothes(export))
+    assert (record["title"], record["in_stock"]) == (title, in_stock)
+
+
+def test_clothes_bare_drop_price_without_currency(export):
+    export.album("🤯Футболки вязка Lacoste\nРазмер: S,M,L,XL\n✅Дроп: 850\n✅Купить себе: 850 грн\n"
+                 "👌ОПТ от 5шт - 800 грн", photos=1)
+    result = build_clothes(export)
+    assert only(result)["price_retail"] == 1150
+    assert result.products[0].cost["price_supplier"] == 850
+
+
+def test_bare_drop_price_only_for_russian_template(export):
+    export.album("Футболка Lacoste\nРозмір : M\nДроп: 850", photos=1)
+    assert "no_drop_price" in only(build(export))["review_reasons"]
+
+
+def test_clothes_extra_keywords_and_accessories(export):
+    export.album("🤯Штаны плащевка CP Company\nРазмер: S,M\n✅Дроп: 900 грн", photos=1)
+    export.album("🤯Панамки Stone Island\nРазмер: One size\n✅Дроп: 500 грн", photos=1,
+                 date="01.01.2026 12:01:00 UTC+02:00")
+    records = by_title(build_clothes(export))
+    assert records["Штани плащевка CP Company"]["review_reasons"] == []
+    assert records["Панамки Stone Island"]["review_reasons"] == ["category_unknown"]
+
+
+def test_extra_keywords_do_not_leak_into_other_suppliers():
+    assert "штаны" in CLOTHES["keywords"]["clothes"]
+    assert "штаны" not in CONFIG["keywords"]["clothes"]
+    assert "extra_keywords" not in CLOTHES
+
+
+def test_config_rejects_bad_extra_keywords(tmp_path):
+    with pytest.raises(SystemExit, match="extra_keywords"):
+        tool.load_config(write_config(tmp_path, markup_add=1, extra_keywords={"bags": ["x"]}), "test_shop")

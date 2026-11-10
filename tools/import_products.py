@@ -491,6 +491,44 @@ def extract_insole_table(text: str) -> list[tuple[str, str]]:
     return rows[:MAX_SIZES]
 
 
+# Russian-language posts ("russian_posts": true): status / promo prefixes in
+# the title line, "Дроп: 850" without a currency, "нету в наличие".
+RU_TITLE_PREFIX_RE = re.compile(
+    r"^(?:(?:нету?|нет)\s+в\s+(?:полном\s+|большом\s+)?наличи[еяи]\w*"
+    r"|снова\s+в\s+(?:полном\s+|большом\s+)?наличи[еяи]\w*"
+    r"|в\s+наличи[еяи]\w*|хит\s+сезона|скидка|снижение\s+цены|новинка|распродажа)"
+    r"[\s!,.:;—-]*",
+    re.IGNORECASE,
+)
+RU_NOT_TITLE_RE = re.compile(
+    r"^(?:ширина|высота|длина|глубина|замеры|писать|пишите|с\s+сегодняшнего|поэтому|успевайте)\b",
+    re.IGNORECASE,
+)
+RU_OUT_OF_STOCK_RE = re.compile(r"(?:нету?|нет)\s+в\s+наличи", re.IGNORECASE)
+BARE_DROP_RE = re.compile(r"^\W*дроп[^\d:]{0,30}:\s*(\d{2,6})\s*$", re.IGNORECASE)
+
+
+def ru_title_text(text: str) -> str:
+    """Lines usable as a title: status/promo prefixes removed, promo-only,
+    measurement and contact lines dropped."""
+    kept = []
+    for line in lines_of(text):
+        line = EDGE_SYMBOLS_RE.sub("", line).strip()
+        while True:
+            stripped = EDGE_SYMBOLS_RE.sub("", RU_TITLE_PREFIX_RE.sub("", line)).strip()
+            if stripped == line:
+                break
+            line = stripped
+        if line and not RU_NOT_TITLE_RE.match(line):
+            kept.append(line)
+    return "\n".join(kept)
+
+
+def extract_bare_drop(text: str) -> set[int]:
+    """"✅Дроп: 850" (no currency) -> {850}."""
+    return {int(m.group(1)) for line in lines_of(text) if (m := BARE_DROP_RE.match(line))}
+
+
 def strip_size_label_symbols(text: str) -> str:
     """"Размеры👇" -> "Размеры", so the generic size parser reads the lines below."""
     return "\n".join(SIZE_LABEL_SYMBOLS_RE.sub(r"\1", line) for line in text.splitlines())
@@ -590,6 +628,7 @@ def build_products(input_dir: Path, config: dict) -> Result:
     markup_add = int(config.get("markup_add", 0))
     round_to = int(config["round_to"])
     keywords = config["keywords"]
+    russian = bool(config.get("russian_posts"))
     fixed_category = config.get("category")
     title_words = config.get("title_words")
     size_table = bool(config.get("size_table"))
@@ -626,13 +665,15 @@ def build_products(input_dir: Path, config: dict) -> Result:
         if caption_at[0] != 0:
             reasons.append("caption_not_first")
 
-        title = extract_title(text)
+        title = extract_title(ru_title_text(text) if russian else text)
         if title is not None and title_words is not None:
             title = normalize_title(title, title_words) or None
         if title is None:
             reasons.append("title_missing")
 
         prices = extract_prices(text)
+        if russian and not prices.drop:
+            prices.drop = extract_bare_drop(text)
         supplier = None
         if len(prices.drop) == 1:
             value = next(iter(prices.drop))
@@ -691,7 +732,7 @@ def build_products(input_dir: Path, config: dict) -> Result:
             "category": category or "Одяг",
             "price_retail": retail_price(supplier, markup, round_to, markup_add) if supplier else 0,
             "sizes": sizes,
-            "in_stock": not OUT_OF_STOCK_RE.search(text),
+            "in_stock": not (OUT_OF_STOCK_RE.search(text) or (russian and RU_OUT_OF_STOCK_RE.search(text))),
             "popular": False,
             "images": [f"uploads/products/{name}" for name, _ in stored],
             "source_channel": channel,
@@ -1022,6 +1063,8 @@ SUPPLIER_KEYS = {
     "category": str,            # fixed category instead of keyword detection
     "title_words": dict,        # strip emoji at title ends, replace the first word
     "size_table": bool,         # "40-25 см" insole lines -> sizes + description
+    "russian_posts": bool,      # Russian status/promo lines, "Дроп: 850", "нету в наличие"
+    "extra_keywords": dict,     # added to the shared category keywords
 }
 CATEGORIES = ("Взуття", "Одяг")
 
@@ -1072,6 +1115,12 @@ def load_config(path: Path, supplier: str) -> dict:
         _fail("album_gap_seconds must be within 0..10")
     if "category" in entry and entry["category"] not in CATEGORIES:
         _fail(f"category must be one of {', '.join(CATEGORIES)}")
+    if "extra_keywords" in entry:
+        extra = entry["extra_keywords"]
+        if not set(extra) <= {"shoes", "clothes", "accessories", "restock"} or not all(
+            isinstance(v, list) and all(isinstance(w, str) and w for w in v) for v in extra.values()
+        ):
+            _fail("extra_keywords must map shoes/clothes/accessories/restock to lists of strings")
     if "title_words" in entry:
         words = entry["title_words"]
         if not all(isinstance(k, str) and k and isinstance(v, str) and v for k, v in words.items()):
@@ -1080,6 +1129,12 @@ def load_config(path: Path, supplier: str) -> dict:
 
     config = {k: v for k, v in data.items() if k != "suppliers"}
     config.update(entry)
+    if "extra_keywords" in entry:
+        config["keywords"] = {
+            group: words + [w.casefold() for w in entry["extra_keywords"].get(group, [])]
+            for group, words in data["keywords"].items()
+        }
+        del config["extra_keywords"]
     config["channel"] = supplier
     if "input" in entry:
         raw_root = (REPO / "import" / "raw").resolve()
