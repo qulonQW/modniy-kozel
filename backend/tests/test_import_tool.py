@@ -20,7 +20,9 @@ tool = importlib.util.module_from_spec(spec)
 sys.modules["import_products"] = tool  # dataclasses look the module up while executing it
 spec.loader.exec_module(tool)
 
-CONFIG = tool.load_config(REPO_DIR / "tools" / "import_config.json")
+CONFIG_PATH = REPO_DIR / "tools" / "import_config.json"
+CONFIG = tool.load_config(CONFIG_PATH, "avtorik_shop")
+FIXTURES = Path(__file__).parent / "fixtures"
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF"
 
 PRODUCT = """Кросівки Nike Air Max
@@ -97,7 +99,7 @@ def export(tmp_path):
 
 
 def build(export: Export) -> tool.Result:
-    return tool.build_products(export.write(), json.loads(json.dumps(CONFIG)))
+    return tool.build_products(export.write(), json.loads(json.dumps(CONFIG, default=str)))
 
 
 def only(result: tool.Result) -> dict:
@@ -327,9 +329,9 @@ def test_all_photos_invalid_skips_product(export):
 
 def run_tool(export_dir: Path, out: Path, *extra: str) -> None:
     tool.main([
-        "--input", str(export_dir), "--out-public", str(out / "public.json"),
+        "--supplier", "avtorik_shop", "--input", str(export_dir), "--out-public", str(out / "public.json"),
         "--out-costs", str(out / "private" / "costs.json"), "--report", str(out / "report.md"),
-        "--uploads-dir", str(out / "uploads"), *extra,
+        "--uploads-dir", str(out / "uploads"), "--db", str(out / "no-db.sqlite3"), *extra,
     ])
 
 
@@ -385,3 +387,344 @@ def test_full_pipeline_is_idempotent_and_safe(export, tmp_path, conn):
     ).fetchall() == seeded
     bag = conn.execute("SELECT needs_review, review_reasons, category FROM products WHERE title LIKE 'Сумка%'").fetchone()
     assert tuple(bag) == (1, "category_unknown", "Одяг")
+
+
+# --- regression: the first supplier parses exactly as before multi-supplier --
+
+
+def snapshot(result: tool.Result) -> dict:
+    return {
+        "groups": result.groups,
+        "products": [
+            {"record": p.record, "cost": p.cost, "photos": [name for name, _ in p.photos]}
+            for p in result.products
+        ],
+        "skipped": {k: v for k, v in sorted(result.skipped.items())},
+        "photo_issues": {k: [list(x) for x in v] for k, v in sorted(result.photo_issues.items())},
+    }
+
+
+def test_avtorik_fixture_matches_snapshot_from_single_supplier_importer():
+    # avtorik_expected.json was produced by the importer before it became
+    # multi-supplier (commit f00cd9b), from the static fixture export.
+    expected = json.loads((FIXTURES / "avtorik_expected.json").read_text(encoding="utf-8"))
+    result = tool.build_products(FIXTURES / "avtorik_export", tool.load_config(CONFIG_PATH, "avtorik_shop"))
+    assert json.loads(json.dumps(snapshot(result), ensure_ascii=False)) == expected
+    # the album tail 1 s after an album stays a separate group for this supplier
+    assert expected["skipped"]["no_caption"] == [36]
+
+
+# --- config ----------------------------------------------------------------
+
+
+def write_config(tmp_path: Path, **supplier) -> Path:
+    data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    data["suppliers"]["test_shop"] = supplier
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def test_config_lists_both_suppliers_with_their_own_channel_key():
+    gladky = tool.load_config(CONFIG_PATH, "casual_gladky_shoes")
+    assert (CONFIG["channel"], gladky["channel"]) == ("avtorik_shop", "casual_gladky_shoes")
+    assert CONFIG["input"] == REPO_DIR / "import" / "raw" / "ChatExport"
+    assert gladky["input"] == REPO_DIR / "import" / "raw" / "ChatExport2"
+    assert gladky["markup_add"] == 300 and "markup" not in gladky
+    assert "album_gap_seconds" not in CONFIG and "size_table" not in CONFIG
+
+
+@pytest.mark.parametrize(
+    "supplier,message",
+    [
+        ({"markup": 1.3, "markup_add": 300}, "exactly one of markup"),
+        ({}, "exactly one of markup"),
+        ({"markup": 20}, "markup must be within"),
+        ({"markup_add": 300, "input": "../outside"}, "inside import/raw"),
+        ({"markup_add": 300, "input": "import/raw/../private"}, "inside import/raw"),
+        ({"markup_add": 300, "category": "Аксесуари"}, "category must be one of"),
+        ({"markup_add": 300, "eval": "x"}, "not a known setting"),
+        ({"markup_add": True}, "wrong type"),
+        ({"markup_add": 300, "album_gap_seconds": 60}, "album_gap_seconds"),
+    ],
+)
+def test_config_rejects_bad_supplier_entries(tmp_path, supplier, message):
+    with pytest.raises(SystemExit, match=message):
+        tool.load_config(write_config(tmp_path, **supplier), "test_shop")
+
+
+def test_config_rejects_unknown_supplier():
+    with pytest.raises(SystemExit, match="unknown supplier"):
+        tool.load_config(CONFIG_PATH, "nope")
+
+
+def test_default_outputs_are_per_supplier():
+    a, b = tool.default_outputs("avtorik_shop"), tool.default_outputs("casual_gladky_shoes")
+    assert all(a[k] != b[k] for k in a)
+    assert b["out_costs"].parent == REPO_DIR / "import" / "private"
+
+
+# --- second supplier template (casual_gladky_shoes) -------------------------
+
+GLADKY = tool.load_config(CONFIG_PATH, "casual_gladky_shoes")
+SHOE_POST = """👟КРОССОВКИ PREMIATA
+
+Размеры👇
+40-25 см
+41-26 см
+42-26.5 см
+
+✅ДРОП- 2500 грн
+✅Купить себе - 2500 грн
+
+Опт➖
+От 5-2400 грн
+От 15-2350 грн
+
+Доп фото👇
+https://t.me/example_photos/12
+
+Менеджер @example_manager
+Тел 067 123 45 67"""
+
+
+def build_gladky(export: Export) -> tool.Result:
+    return tool.build_products(export.write(), json.loads(json.dumps(GLADKY, default=str)))
+
+
+def test_gladky_post_is_parsed_and_contacts_are_dropped(export):
+    first = export.album(SHOE_POST, photos=3)
+    result = build_gladky(export)
+    record = only(result)
+
+    assert record["id"] == tool.product_id("casual_gladky_shoes", first)
+    assert record["id"] != tool.product_id("avtorik_shop", first)
+    assert record["source_channel"] == "casual_gladky_shoes"
+    assert record["title"] == "Кросівки PREMIATA"
+    assert record["category"] == "Взуття"
+    assert record["sizes"] == ["40", "41", "42"]
+    assert record["description"] == "Довжина устілки:\n40 — 25 см\n41 — 26 см\n42 — 26.5 см"
+    assert record["price_retail"] == 2800  # 2500 + 300
+    assert result.products[0].cost == {"price_supplier": 2500, "price_reference": 2500}
+    assert record["review_reasons"] == [] and record["needs_review"] is False
+    public = json.dumps(record, ensure_ascii=False)
+    for marker in ("@", "t.me", "http", "067", "Менеджер", "2400", "2500", "Опт"):
+        assert marker not in public
+
+
+def test_gladky_size_range_after_emoji_label_and_kedy_title(export):
+    text = SHOE_POST.replace("👟КРОССОВКИ PREMIATA", "👟КЕДЫ PREMIATA QUINN")
+    export.album(text.replace("40-25 см\n41-26 см\n42-26.5 см", "40-44"), photos=1)
+    record = only(build_gladky(export))
+    assert record["title"] == "Кеди PREMIATA QUINN"
+    assert record["sizes"] == ["40", "41", "42", "43", "44"]
+    assert record["description"] == ""
+
+
+def test_gladky_unknown_size_format_needs_review(export):
+    export.album(SHOE_POST.replace("40-25 см\n41-26 см\n42-26.5 см", "уточнюйте"), photos=1)
+    assert only(build_gladky(export))["review_reasons"] == ["sizes_unparsed"]
+
+
+def test_album_tail_split_by_one_second_is_reattached(export):
+    export.album(SHOE_POST, photos=4, date="01.01.2026 12:00:00 UTC+02:00")
+    for _ in range(2):  # the same album, continued one second later
+        export.message("", 1, joined=True, date="01.01.2026 12:00:01 UTC+02:00")
+    result = build_gladky(export)
+    assert len(only(result)["images"]) == 6 and not result.skipped
+
+    # the same export with the first supplier's rules keeps the old behaviour
+    avtorik = build(export)
+    assert len(only(avtorik)["images"]) == 4 and len(avtorik.skipped["no_caption"]) == 1
+
+
+@pytest.mark.parametrize(
+    "tail_date,joined,count",
+    [
+        ("01.01.2026 12:00:05 UTC+02:00", True, 2),   # gap too large
+        ("01.01.2026 12:00:01 UTC+02:00", False, 2),  # not joined: a separate post
+        ("01.01.2026 12:00:01 UTC+02:00", True, 7),   # would exceed 10 photos
+        ("01.01.2026 11:59:59 UTC+02:00", True, 2),   # earlier than the album
+    ],
+)
+def test_album_tail_is_not_reattached_when_unsafe(export, tail_date, joined, count):
+    export.album(SHOE_POST, photos=4, date="01.01.2026 12:00:00 UTC+02:00")
+    export.message("", 1, joined=joined, date=tail_date)
+    for _ in range(count - 1):
+        export.message("", 1, joined=True, date=tail_date)
+    result = build_gladky(export)
+    assert len(only(result)["images"]) == 4
+    assert result.skipped["no_caption"]
+
+
+def test_tail_after_uncaptioned_group_is_not_attached(export):
+    export.message("", 2, date="01.01.2026 12:00:00 UTC+02:00")
+    export.message("", 1, joined=True, date="01.01.2026 12:00:01 UTC+02:00")
+    result = build_gladky(export)
+    assert result.products == [] and len(result.skipped["no_caption"]) == 2
+
+
+@pytest.mark.parametrize(
+    "title,expected",
+    [
+        ("🤯Кроссовки Nike Dunk", "Кросівки Nike Dunk"),
+        ("👟КРОССОВКИ NIKE REACT", "Кросівки NIKE REACT"),
+        ("Кеды Vans 🔥🔥", "Кеди Vans"),
+        ("🔥Ботинки Timberland", "Ботинки Timberland"),
+        ("👟", ""),
+    ],
+)
+def test_normalize_title(title, expected):
+    assert tool.normalize_title(title, GLADKY["title_words"]) == expected
+
+
+def test_retail_price_with_fixed_markup():
+    from decimal import Decimal
+
+    assert tool.retail_price(2500, Decimal(1), 10, 300) == 2800
+    assert tool.retail_price(1855, Decimal(1), 10, 300) == 2160  # rounded to 10
+
+
+def test_cli_uses_supplier_key_and_reports_its_pricing(export, tmp_path):
+    export.album(SHOE_POST, photos=2)
+    out = tmp_path / "out"
+    tool.main([
+        "--supplier", "casual_gladky_shoes", "--input", str(export.write()),
+        "--out-public", str(out / "public.json"), "--out-costs", str(out / "private" / "costs.json"),
+        "--report", str(out / "report.md"), "--uploads-dir", str(out / "uploads"),
+        "--db", str(out / "no-db.sqlite3"),
+    ])
+    report = (out / "report.md").read_text(encoding="utf-8")
+    assert "`casual_gladky_shoes`" in report and "markup +300 UAH" in report
+    assert "PREMIATA" not in report and "example_manager" not in report
+    records = json.loads((out / "public.json").read_text(encoding="utf-8"))
+    assert [r["source_channel"] for r in records] == ["casual_gladky_shoes"]
+
+
+# --- duplicate detection (exact photo hash) ---------------------------------
+
+
+def find(export: Export, existing=None, config=None) -> tuple[tool.Result, tool.Duplicates]:
+    result = tool.build_products(export.write(), json.loads(json.dumps(config or CONFIG, default=str)))
+    return result, tool.find_duplicates(result, existing)
+
+
+def by_title(result: tool.Result) -> dict[str, dict]:
+    return {p.record["title"]: p.record for p in result.products}
+
+
+def test_exact_repost_within_supplier_is_flagged_and_first_stays_main(export):
+    a, b = export.photo(), export.photo()
+    first = export.message(PRODUCT, [a, b])
+    export.message("Худі Stone Island\nРозмір : M\nДроп ціна : 1000 UAH", 1)
+    repost = export.message(PRODUCT.replace("Nike Air Max", "Nike Air Max 90"), [export.photo(), b])
+    result, dups = find(export)
+    records = {p.record["source_message_id"]: p.record for p in result.products}
+
+    main = records[first]
+    assert "duplicate_group" not in main and "possible_duplicate" not in main["review_reasons"]
+    copy = records[repost]
+    assert copy["duplicate_group"] == main["id"]
+    assert "possible_duplicate" in copy["review_reasons"] and copy["needs_review"] is True
+    assert "duplicate_group" not in by_title(result)["Худі Stone Island"]
+    assert [(g.main.id, [m.id for m in g.members]) for g in dups.groups] == [(main["id"], [copy["id"]])]
+    assert len(result.products) == 3  # nothing removed or merged
+
+
+def test_main_choice_does_not_depend_on_record_order(export):
+    shared = export.photo()
+    export.message(PRODUCT, [shared])
+    export.message(PRODUCT.replace("Nike", "Puma"), [shared])
+    export.message(PRODUCT.replace("Nike", "Fila"), [shared])
+    r1, _ = find(export)
+    r2 = tool.build_products(export.write(), json.loads(json.dumps(CONFIG, default=str)))
+    r2.products.reverse()
+    tool.find_duplicates(r2, None)
+    flags = lambda r: sorted((p.record["id"], p.record.get("duplicate_group")) for p in r.products)
+    assert flags(r1) == flags(r2)
+    assert sum(1 for p in r1.products if "duplicate_group" not in p.record) == 1
+
+
+def test_photo_shared_by_many_products_is_a_common_image(export):
+    banner = export.photo()
+    for n in range(tool.COMMON_PHOTO_LIMIT + 1):
+        export.message(PRODUCT.replace("Nike", f"Brand{n}"), [export.photo(), banner])
+    result, dups = find(export)
+    assert dups.groups == [] and dups.common_photos == 1
+    assert all("duplicate_group" not in p.record for p in result.products)
+
+
+def add_db_product(conn, uploads: Path, pid: str, data: bytes, status: str = "published", **fields) -> None:
+    insert_product(conn, pid, status, **fields)
+    name = f"{pid}.jpg"
+    (uploads / "products").mkdir(parents=True, exist_ok=True)
+    (uploads / "products" / name).write_bytes(data)
+    conn.execute("INSERT INTO product_images (product_id, path, position) VALUES (?, ?, 0)",
+                 (pid, f"uploads/products/{name}"))
+    conn.commit()
+
+
+def test_cross_supplier_match_with_db_row_points_to_the_db_row(export, conn, tmp_path):
+    uploads = tmp_path / "uploads"
+    photo = export.photo()
+    data = (export.root / photo).read_bytes()
+    add_db_product(conn, uploads, "avtorik-old", data, source_channel="avtorik_shop", source_message_id=5)
+    before = conn.execute("SELECT * FROM products").fetchall()
+    export.album(SHOE_POST, photos=2)
+    export.message(SHOE_POST.replace("PREMIATA", "PREMIATA STEVEN"), [photo])
+
+    existing = tool.load_known(tmp_path / "test.sqlite3", uploads)
+    result, dups = find(export, existing, GLADKY)
+
+    flagged = [p.record for p in result.products if p.record.get("duplicate_group")]
+    assert [(r["title"], r["duplicate_group"]) for r in flagged] == [("Кросівки PREMIATA STEVEN", "avtorik-old")]
+    assert dups.db_used and dups.groups[0].main.status == "published"
+    assert conn.execute("SELECT * FROM products").fetchall() == before  # DB only read
+
+
+def test_load_known_ignores_bad_paths_and_missing_db(tmp_path, conn):
+    assert tool.load_known(tmp_path / "nope.sqlite3", tmp_path) is None
+    insert_product(conn, "p1")
+    conn.execute("INSERT INTO product_images (product_id, path, position) VALUES ('p1', '../../backend/.env', 0)")
+    conn.commit()
+    [known] = tool.load_known(tmp_path / "test.sqlite3", tmp_path)
+    assert known.hashes == set()
+
+
+def test_duplicate_flags_survive_db_import_and_rerun_is_idempotent(export, conn, tmp_path):
+    from app.schemas import PublicProduct
+
+    uploads = tmp_path / "out" / "uploads"
+    add_db_product(conn, uploads, "keep-published", b"\xff\xd8\xff-published-photo")
+    shared = export.photo()
+    export.album(PRODUCT, photos=2)
+    export.message(PRODUCT.replace("Nike Air Max", "Adidas Samba"), [shared])
+    export.message(PRODUCT.replace("Nike Air Max", "Adidas Samba repost"), [shared])
+    out = tmp_path / "out"
+    export_dir = export.write()
+    db_path = tmp_path / "test.sqlite3"
+    public, private = out / "public.json", out / "private" / "costs.json"
+
+    run_tool(export_dir, out, "--db", str(db_path))
+    first = public.read_bytes()
+    r1 = import_files(conn, public, private)
+    run_tool(export_dir, out, "--db", str(db_path))
+    r2 = import_files(conn, public, private)
+
+    assert public.read_bytes() == first
+    assert (r1.inserted, r1.errors) == (3, [])
+    assert (r2.inserted, r2.updated, r2.unchanged) == (0, 0, 3)
+    assert conn.execute("SELECT COUNT(*) FROM products").fetchone()[0] == 4
+    rows = conn.execute(
+        "SELECT id, status, duplicate_group, review_reasons FROM products WHERE source_channel = 'avtorik_shop'"
+    ).fetchall()
+    assert {r["status"] for r in rows} == {"draft"}
+    flagged = [r for r in rows if r["duplicate_group"]]
+    assert len(flagged) == 1 and "possible_duplicate" in flagged[0]["review_reasons"]
+    assert flagged[0]["duplicate_group"] in {r["id"] for r in rows}
+    assert conn.execute("SELECT status FROM products WHERE id = 'keep-published'").fetchone()[0] == "published"
+    assert "duplicate_group" not in PublicProduct.model_fields
+
+    report = (out / "report.md").read_text(encoding="utf-8")
+    assert "## Possible duplicates" in report and flagged[0]["id"] in report
+    assert "supplier_manager" not in report and "t.me" not in report

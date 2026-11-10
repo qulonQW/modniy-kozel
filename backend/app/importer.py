@@ -91,12 +91,14 @@ def _values(record: ImportRecord, cost: CostEntry | None) -> tuple:
         record.source_message_id,
         int(record.needs_review or bool(record.review_reasons)),
         ",".join(record.review_reasons),
+        record.duplicate_group,
     )
 
 
 _COLUMNS = (
     "title, description, category, price_retail, price_supplier, price_reference, sizes, "
-    "in_stock, popular, source_channel, source_message_id, needs_review, review_reasons"
+    "in_stock, popular, source_channel, source_message_id, needs_review, review_reasons, "
+    "duplicate_group"
 )
 
 

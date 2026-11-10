@@ -259,3 +259,24 @@ main {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 .toast-error { background: var(--red); color: var(--text); }
+
+/* Possible duplicates */
+:root { --dup: #7cc4ff; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.flag-dup { color: var(--dup); }
+.duplicate-box {
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid var(--dup);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.duplicate-box h2 { margin: 0 0 4px; font-size: 16px; }
+.duplicate-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.duplicate-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px; border: 0; border-radius: var(--radius-btn);
+  background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.duplicate-item:hover, .duplicate-item:focus-visible { background: var(--border); }
+.duplicate-item .muted { color: var(--muted); }

@@ -37,7 +37,10 @@
           <option value="Одяг">Одяг</option>
         </select>
       </div>
-      <button class="pill" type="button" id="filter-review" aria-pressed="false">⚠ Потребує перевірки</button>
+      <div class="pills">
+        <button class="pill" type="button" id="filter-review" aria-pressed="false">⚠ Потребує перевірки</button>
+        <button class="pill" type="button" id="filter-duplicates" aria-pressed="false">⧉ Можливі дублі</button>
+      </div>
     </div>
 
     <p class="summary" id="summary"></p>
@@ -63,6 +66,13 @@
       <h2>Потребує перевірки</h2>
       <ul id="review-reasons"></ul>
       <button class="btn btn-small btn-ghost" type="button" id="confirm-review">Позначити перевіреним</button>
+    </section>
+
+    <section class="duplicate-box" id="duplicate-box" hidden>
+      <h2>Можливі дублі</h2>
+      <p class="hint">У цих товарів такі самі фото. Відкрийте зайвий і приховайте або видаліть його.
+        Якщо це не дубль — натисніть «Позначити перевіреним».</p>
+      <ul class="duplicate-list" id="duplicate-list"></ul>
     </section>
 
     <form id="edit-form" novalidate>

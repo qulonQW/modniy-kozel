@@ -60,11 +60,13 @@ def list_products(
     category: Category | None = None,
     search: Annotated[str | None, Query(max_length=100)] = None,
     needs_review: bool | None = None,
+    duplicates: bool = False,
     limit_: Annotated[int, Query(alias="limit", ge=1, le=500)] = 200,
     offset: Annotated[int, Query(ge=0)] = 0,
 ):
     items, total = repo.admin_list(
-        conn, status, category, (search or "").strip() or None, limit_, offset, needs_review
+        conn, status, category, (search or "").strip() or None, limit_, offset, needs_review,
+        duplicates,
     )
     return AdminProductList(items=items, total=total)
 

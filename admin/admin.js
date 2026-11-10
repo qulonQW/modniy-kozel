@@ -29,6 +29,7 @@
     sizes_missing: 'Розміри не знайдено',
     sizes_unparsed: 'Розміри не вдалося розпізнати',
     photo_rejected: 'Частину фото відхилено під час імпорту',
+    possible_duplicate: 'Можливий дубль: такі самі фото є в іншого товару (список нижче)',
   };
 
   // ---------------------------------------------------------------- helpers
@@ -140,7 +141,7 @@
     items: [],
     total: 0,
     selected: new Set(),
-    filters: { search: '', status: '', category: '', needsReview: false },
+    filters: { search: '', status: '', category: '', needsReview: false, duplicates: false },
     current: null, // product being edited (null = new)
     listScroll: 0,
   };
@@ -154,6 +155,7 @@
     if (f.status) params.set('status', f.status);
     if (f.category) params.set('category', f.category);
     if (f.needsReview) params.set('needs_review', 'true');
+    if (f.duplicates) params.set('duplicates', 'true');
     return `/products?${params}`;
   }
 
@@ -193,6 +195,7 @@
       statusBadge(p.status),
       h('span', null, p.category),
       p.needs_review ? h('span', { className: 'flag' }, '⚠ перевірка') : null,
+      p.duplicate_group ? h('span', { className: 'flag flag-dup' }, p.duplicate_group === p.id ? '⧉ є дублі' : '⧉ дубль?') : null,
       p.images.length ? h('span', null, `${p.images.length} фото`) : h('span', { className: 'price-zero' }, 'без фото'),
     );
     return h('li', { className: 'product-row', onclick: () => openEditor(p.id) },
@@ -280,6 +283,7 @@
       ...(reasons.length ? reasons : ['']).map((r) => h('li', null, REASON_LABELS[r] || r || 'Перевірте дані товару')),
     );
 
+    renderDuplicates();
     $('images-section').hidden = !p;
     $('danger-zone').hidden = !p;
     renderImages();
@@ -288,6 +292,22 @@
       ? `ID ${p.id} · змінено ${new Date(p.updated_at).toLocaleString('uk-UA')}` +
         (p.source_message_id ? ` · пост постачальника №${p.source_message_id}` : '')
       : '';
+  }
+
+  function renderDuplicates() {
+    const members = state.current ? state.current.duplicates : [];
+    $('duplicate-box').hidden = members.length === 0;
+    $('duplicate-list').replaceChildren(...members.map((m) => h('li', null,
+      h('button', { type: 'button', className: 'duplicate-item', onclick: () => openEditor(m.id) },
+        m.image_url ? h('img', { className: 'thumb', src: m.image_url, alt: '', loading: 'lazy' }) : h('div', { className: 'thumb' }),
+        h('div', { className: 'row-body' },
+          h('div', { className: 'row-title' }, m.title),
+          h('div', { className: 'row-meta' },
+            statusBadge(m.status),
+            m.is_main ? h('span', { className: 'flag flag-dup' }, 'перший') : null,
+            h('span', null, `${m.image_count} фото`),
+            h('span', { className: 'muted' }, `ID ${m.id}`))),
+      ))));
   }
 
   function renderPriceHint() {
@@ -507,6 +527,11 @@
     $('filter-review').addEventListener('click', (e) => {
       state.filters.needsReview = !state.filters.needsReview;
       e.currentTarget.setAttribute('aria-pressed', String(state.filters.needsReview));
+      loadList();
+    });
+    $('filter-duplicates').addEventListener('click', (e) => {
+      state.filters.duplicates = !state.filters.duplicates;
+      e.currentTarget.setAttribute('aria-pressed', String(state.filters.duplicates));
       loadList();
     });
     $('load-more').addEventListener('click', () => loadList(true));

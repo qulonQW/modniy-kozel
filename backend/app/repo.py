@@ -6,7 +6,7 @@ import json
 import sqlite3
 
 from .db import utc_now
-from .schemas import AdminImage, AdminProduct, ProductCreate, PublicProduct
+from .schemas import AdminImage, AdminProduct, DuplicateMember, ProductCreate, PublicProduct
 
 # Newest first; rows created in the same second keep insertion order.
 ORDER_BY = "ORDER BY p.created_at DESC, p.rowid ASC"
@@ -98,7 +98,53 @@ def _admin_images_many(conn: sqlite3.Connection, ids: list[str]) -> dict[str, li
     return result
 
 
-def to_admin(row: sqlite3.Row, images: list[sqlite3.Row]) -> AdminProduct:
+# A product is in a duplicate group if it points to a main product or if
+# other products point to it.
+IN_DUPLICATE_GROUP_SQL = (
+    "(p.duplicate_group IS NOT NULL OR EXISTS "
+    "(SELECT 1 FROM products d WHERE d.duplicate_group = p.id))"
+)
+
+
+def _group_keys(conn: sqlite3.Connection, rows: list[sqlite3.Row]) -> dict[str, str]:
+    """id -> duplicate group key for the given rows."""
+    keys = {r["id"]: r["duplicate_group"] for r in rows if r["duplicate_group"]}
+    ids = [r["id"] for r in rows if r["id"] not in keys]
+    if ids:
+        marks = ",".join("?" * len(ids))
+        for r in conn.execute(
+            f"SELECT DISTINCT duplicate_group FROM products WHERE duplicate_group IN ({marks})", ids
+        ):
+            keys[r[0]] = r[0]
+    return keys
+
+
+def duplicate_members(conn: sqlite3.Connection, product_id: str, key: str) -> list[DuplicateMember]:
+    rows = conn.execute(
+        "SELECT id, title, status FROM products WHERE (id = ? OR duplicate_group = ?) AND id != ? "
+        "ORDER BY id = ? DESC, created_at, id",
+        (key, key, product_id, key),
+    ).fetchall()
+    images = _admin_images_many(conn, [r["id"] for r in rows])
+    return [
+        DuplicateMember(
+            id=r["id"],
+            title=r["title"],
+            status=r["status"],
+            is_main=r["id"] == key,
+            image_url=image_url(images[r["id"]][0]["path"]) if images[r["id"]] else None,
+            image_count=len(images[r["id"]]),
+        )
+        for r in rows
+    ]
+
+
+def to_admin(
+    row: sqlite3.Row,
+    images: list[sqlite3.Row],
+    group: str | None = None,
+    duplicates: list[DuplicateMember] | None = None,
+) -> AdminProduct:
     return AdminProduct(
         id=row["id"],
         title=row["title"],
@@ -119,6 +165,8 @@ def to_admin(row: sqlite3.Row, images: list[sqlite3.Row]) -> AdminProduct:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         images=[AdminImage(id=i["id"], url=image_url(i["path"]), position=i["position"]) for i in images],
+        duplicate_group=group,
+        duplicates=duplicates or [],
     )
 
 
@@ -130,8 +178,17 @@ def admin_list(
     limit: int,
     offset: int,
     needs_review: bool | None = None,
+    duplicates: bool = False,
 ) -> tuple[list[AdminProduct], int]:
     where, params = [], []
+    order = ORDER_BY
+    if duplicates:
+        where.append(IN_DUPLICATE_GROUP_SQL)
+        # members of one group next to each other, main product first
+        order = (
+            "ORDER BY COALESCE(p.duplicate_group, p.id), p.duplicate_group IS NOT NULL, "
+            "p.created_at, p.rowid"
+        )
     if needs_review is not None:
         where.append("p.needs_review = ?")
         params.append(int(needs_review))
@@ -151,15 +208,20 @@ def admin_list(
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     total = conn.execute(f"SELECT COUNT(*) FROM products p {clause}", params).fetchone()[0]
     rows = conn.execute(
-        f"SELECT * FROM products p {clause} {ORDER_BY} LIMIT ? OFFSET ?", [*params, limit, offset]
+        f"SELECT * FROM products p {clause} {order} LIMIT ? OFFSET ?", [*params, limit, offset]
     ).fetchall()
     images = _admin_images_many(conn, [r["id"] for r in rows])
-    return [to_admin(r, images[r["id"]]) for r in rows], total
+    groups = _group_keys(conn, rows)
+    return [to_admin(r, images[r["id"]], groups.get(r["id"])) for r in rows], total
 
 
 def admin_get(conn: sqlite3.Connection, product_id: str) -> AdminProduct | None:
     row = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
-    return None if row is None else to_admin(row, admin_images(conn, product_id))
+    if row is None:
+        return None
+    group = _group_keys(conn, [row]).get(product_id)
+    members = duplicate_members(conn, product_id, group) if group else []
+    return to_admin(row, admin_images(conn, product_id), group, members)
 
 
 def _db_value(name: str, value):
@@ -227,6 +289,9 @@ def admin_update(conn: sqlite3.Connection, product_id: str, changes: dict) -> bo
     updates = {c: _db_value(c, v) for c, v in changes.items()}
     if clears_review:
         updates.update(needs_review=0, review_reasons="")
+    if confirm_review:
+        # "Checked" also answers "possible duplicate": it is not one.
+        updates.update(duplicate_group=None)
     if updates:
         assignments = ", ".join(f"{c} = ?" for c in updates)
         conn.execute(

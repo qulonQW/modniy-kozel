@@ -17,4 +17,6 @@ __pycache__/
 import/raw/
 import/private/
 import/products.public.json
+import/products.*.public.json
 import/import_report.md
+import/import_report.*.md

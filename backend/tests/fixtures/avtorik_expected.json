@@ -1,0 +1,305 @@
+{
+ "groups": 12,
+ "products": [
+  {
+   "record": {
+    "id": "3993c77b5551",
+    "title": "Шорти Stone Island 40-45",
+    "description": "",
+    "category": "Одяг",
+    "price_retail": 1040,
+    "sizes": [
+     "40",
+     "41",
+     "42",
+     "43",
+     "44",
+     "45"
+    ],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+     "uploads/products/e652cc5525ad9bc9e215937e0d08ed17.jpg"
+    ],
+    "source_channel": "avtorik_shop",
+    "source_message_id": 65,
+    "needs_review": false,
+    "review_reasons": []
+   },
+   "cost": {
+    "price_supplier": 800,
+    "price_reference": null
+   },
+   "photos": [
+    "e652cc5525ad9bc9e215937e0d08ed17.jpg"
+   ]
+  },
+  {
+   "record": {
+    "id": "fe9f66103c4a",
+    "title": "Кросівки Adidas Samba",
+    "description": "",
+    "category": "Взуття",
+    "price_retail": 0,
+    "sizes": [],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+     "uploads/products/263b143b4bc4fb0826d2e78be2982a47.jpg"
+    ],
+    "source_channel": "avtorik_shop",
+    "source_message_id": 64,
+    "needs_review": true,
+    "review_reasons": [
+     "price_out_of_range",
+     "sizes_unparsed"
+    ]
+   },
+   "cost": {
+    "price_supplier": null,
+    "price_reference": null
+   },
+   "photos": [
+    "263b143b4bc4fb0826d2e78be2982a47.jpg"
+   ]
+  },
+  {
+   "record": {
+    "id": "45b936aa8df4",
+    "title": "Штани Nike Tech",
+    "description": "",
+    "category": "Одяг",
+    "price_retail": 0,
+    "sizes": [
+     "M",
+     "L",
+     "XL"
+    ],
+    "in_stock": false,
+    "popular": false,
+    "images": [
+     "uploads/products/c3955a51fcf872e6cbde321565bf88ef.jpg"
+    ],
+    "source_channel": "avtorik_shop",
+    "source_message_id": 63,
+    "needs_review": true,
+    "review_reasons": [
+     "multiple_drop_prices",
+     "photo_rejected"
+    ]
+   },
+   "cost": {
+    "price_supplier": null,
+    "price_reference": null
+   },
+   "photos": [
+    "c3955a51fcf872e6cbde321565bf88ef.jpg"
+   ]
+  },
+  {
+   "record": {
+    "id": "d6921946dc95",
+    "title": "Кепка від Nike NSW",
+    "description": "",
+    "category": "Одяг",
+    "price_retail": 0,
+    "sizes": [
+     "One size"
+    ],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+     "uploads/products/af65613bdeb86c6d2c2c84ae22567b05.png"
+    ],
+    "source_channel": "avtorik_shop",
+    "source_message_id": 62,
+    "needs_review": true,
+    "review_reasons": [
+     "no_drop_price",
+     "price_unlabeled",
+     "category_unknown"
+    ]
+   },
+   "cost": {
+    "price_supplier": null,
+    "price_reference": null
+   },
+   "photos": [
+    "af65613bdeb86c6d2c2c84ae22567b05.png"
+   ]
+  },
+  {
+   "record": {
+    "id": "731d56ffb291",
+    "title": "Кросівки New Balance 9060",
+    "description": "Колір: Сірий\n40(25.5cm) 41(26cm)\n42(26.5cm) 43(27.5cm)\nМаломірять на розмір",
+    "category": "Взуття",
+    "price_retail": 2150,
+    "sizes": [
+     "40",
+     "41",
+     "42",
+     "43"
+    ],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+     "uploads/products/b7431fa3fd959eb89d7e5eafaf8e51a3.jpg",
+     "uploads/products/42b541f04f0b97b2582b9617034b992d.jpg",
+     "uploads/products/b13e671deefc7da4ff3d9567eb8f9f9f.jpg",
+     "uploads/products/f8cbab5d92eae70d97d1379d59b5387a.jpg"
+    ],
+    "source_channel": "avtorik_shop",
+    "source_message_id": 40,
+    "needs_review": true,
+    "review_reasons": [
+     "caption_not_first"
+    ]
+   },
+   "cost": {
+    "price_supplier": 1650,
+    "price_reference": 2100
+   },
+   "photos": [
+    "b7431fa3fd959eb89d7e5eafaf8e51a3.jpg",
+    "42b541f04f0b97b2582b9617034b992d.jpg",
+    "b13e671deefc7da4ff3d9567eb8f9f9f.jpg",
+    "f8cbab5d92eae70d97d1379d59b5387a.jpg"
+   ]
+  },
+  {
+   "record": {
+    "id": "89593e58e37a",
+    "title": "Футболки THE NORTH FACE",
+    "description": "Колір: Чорний, Білий",
+    "category": "Одяг",
+    "price_retail": 650,
+    "sizes": [
+     "S",
+     "M",
+     "L"
+    ],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+     "uploads/products/f989c010c712f882ec7571b1860050d7.jpg",
+     "uploads/products/269cd033ed8b9830206cf135661c0f65.jpg",
+     "uploads/products/89bf7d84ad0c6811daa3961609681b8d.jpg",
+     "uploads/products/cbe24be6c9f5b5f2430e4a0badc8727a.jpg",
+     "uploads/products/cab1748cd811c538e138c4195bf0a471.jpg",
+     "uploads/products/841567309ed45666281c64fc826360c2.jpg"
+    ],
+    "source_channel": "avtorik_shop",
+    "source_message_id": 30,
+    "needs_review": false,
+    "review_reasons": []
+   },
+   "cost": {
+    "price_supplier": 500,
+    "price_reference": 550
+   },
+   "photos": [
+    "f989c010c712f882ec7571b1860050d7.jpg",
+    "269cd033ed8b9830206cf135661c0f65.jpg",
+    "89bf7d84ad0c6811daa3961609681b8d.jpg",
+    "cbe24be6c9f5b5f2430e4a0badc8727a.jpg",
+    "cab1748cd811c538e138c4195bf0a471.jpg",
+    "841567309ed45666281c64fc826360c2.jpg"
+   ]
+  },
+  {
+   "record": {
+    "id": "677f225c93ef",
+    "title": "Найпопулярніше худі",
+    "description": "Тканина: трехнитка без флісу\nКолір: Чорний",
+    "category": "Одяг",
+    "price_retail": 1300,
+    "sizes": [
+     "S",
+     "M",
+     "L",
+     "XL",
+     "XXL"
+    ],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+     "uploads/products/8f97d78c0ed742ff3b3697c75fcc3eb2.jpg"
+    ],
+    "source_channel": "avtorik_shop",
+    "source_message_id": 20,
+    "needs_review": true,
+    "review_reasons": [
+     "generic_title"
+    ]
+   },
+   "cost": {
+    "price_supplier": 999,
+    "price_reference": 1200
+   },
+   "photos": [
+    "8f97d78c0ed742ff3b3697c75fcc3eb2.jpg"
+   ]
+  },
+  {
+   "record": {
+    "id": "eee5350ab39d",
+    "title": "Месенджер від Nike",
+    "description": "Колір: Чорний",
+    "category": "Одяг",
+    "price_retail": 470,
+    "sizes": [],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+     "uploads/products/b07c9810e0aa7b050636bf476e0315ed.jpg",
+     "uploads/products/a4a30a0e4b6e5938986262a4f7e02ac3.jpg",
+     "uploads/products/1043c31ef2decf85553f28f35f4fb163.jpg"
+    ],
+    "source_channel": "avtorik_shop",
+    "source_message_id": 10,
+    "needs_review": true,
+    "review_reasons": [
+     "category_unknown"
+    ]
+   },
+   "cost": {
+    "price_supplier": 360,
+    "price_reference": 399
+   },
+   "photos": [
+    "b07c9810e0aa7b050636bf476e0315ed.jpg",
+    "a4a30a0e4b6e5938986262a4f7e02ac3.jpg",
+    "1043c31ef2decf85553f28f35f4fb163.jpg"
+   ]
+  }
+ ],
+ "skipped": {
+  "ad_or_announcement": [
+   61
+  ],
+  "no_caption": [
+   36
+  ],
+  "restock_announcement": [
+   50
+  ],
+  "text_announcement": [
+   60
+  ]
+ },
+ "photo_issues": {
+  "photo_bad_type": [
+   [
+    63,
+    "photo_22@01-03-2026_12-00-00.jpg"
+   ]
+  ],
+  "photo_missing": [
+   [
+    63,
+    "missing.jpg"
+   ]
+  ]
+ }
+}

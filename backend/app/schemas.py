@@ -78,6 +78,8 @@ class ImportRecord(StrictModel):
     source_message_id: Annotated[int, Field(ge=0)] | None = None
     needs_review: bool = False
     review_reasons: list[ReasonCode] = Field(default_factory=list, max_length=MAX_REASONS)
+    # Admin-only: id of the main product of a possible-duplicate group.
+    duplicate_group: ProductId | None = None
 
     _sizes = field_validator("sizes")(normalize_sizes)
 
@@ -176,6 +178,17 @@ class AdminImage(BaseModel):
     position: int
 
 
+class DuplicateMember(BaseModel):
+    """Another product of the same possible-duplicate group (admin only)."""
+
+    id: str
+    title: str
+    status: str
+    is_main: bool
+    image_url: str | None
+    image_count: int
+
+
 class AdminProduct(BaseModel):
     id: str
     title: str
@@ -196,6 +209,10 @@ class AdminProduct(BaseModel):
     created_at: str
     updated_at: str
     images: list[AdminImage]
+    # Possible-duplicate group key (= id of the group's main product), also set
+    # on the main product itself while other products point to it.
+    duplicate_group: str | None = None
+    duplicates: list[DuplicateMember] = []  # filled for a single product only
 
 
 class AdminProductList(BaseModel):

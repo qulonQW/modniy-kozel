@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS products (
     needs_review      INTEGER NOT NULL DEFAULT 0 CHECK (needs_review IN (0, 1)),
     review_reasons    TEXT NOT NULL DEFAULT '',
     price_reference   INTEGER CHECK (price_reference >= 0),
+    duplicate_group   TEXT CHECK (duplicate_group IS NULL OR length(duplicate_group) BETWEEN 1 AND 64),
     source_channel    TEXT,
     source_message_id INTEGER,
     created_at        TEXT NOT NULL,
@@ -72,6 +73,10 @@ ADDED_COLUMNS = {
         ("needs_review", "INTEGER NOT NULL DEFAULT 0 CHECK (needs_review IN (0, 1))"),
         ("review_reasons", "TEXT NOT NULL DEFAULT ''"),
         ("price_reference", "INTEGER CHECK (price_reference >= 0)"),
+        (
+            "duplicate_group",
+            "TEXT CHECK (duplicate_group IS NULL OR length(duplicate_group) BETWEEN 1 AND 64)",
+        ),
     ],
 }
 
@@ -83,4 +88,8 @@ def init_db(conn: sqlite3.Connection) -> None:
         for name, definition in columns:
             if name not in existing:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+    # After the migration: older databases get the column only in the loop above.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_products_duplicate_group ON products (duplicate_group)"
+    )
     conn.commit()
