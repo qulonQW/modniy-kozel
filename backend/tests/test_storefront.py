@@ -33,3 +33,14 @@ def test_storefront_uses_api_not_hardcoded_products():
     assert "sneaker-01" not in js
     for page in ("index.html", "catalog.html", "product.html", "cart.html", "checkout.html"):
         assert "PRODUCTS_READY.then" in (REPO_DIR / page).read_text(encoding="utf-8"), page
+
+
+def test_storefront_never_renders_html_strings():
+    """Product data comes from the admin and the supplier import, so the
+    storefront builds DOM with createElement/textContent only."""
+    files = ["app.js", "cart.js", "products.js", "index.html", "catalog.html", "product.html",
+             "cart.html", "checkout.html", "orders.html"]
+    for name in files:
+        text = (REPO_DIR / name).read_text(encoding="utf-8")
+        for api in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "MK.esc"):
+            assert api not in text, f"{name}: {api}"

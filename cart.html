@@ -44,26 +44,34 @@
   <script>
     const list = document.getElementById('list');
 
+    function removeIcon() {
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('class', 'icon');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('aria-hidden', 'true');
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', 'M6 6l12 12M18 6L6 18');
+      svg.append(path);
+      return svg;
+    }
+
     function render() {
       const items = MKCart.getItems();
       document.getElementById('filled').hidden = items.length === 0;
       document.getElementById('empty').hidden = items.length > 0;
 
-      list.innerHTML = items.map(({ product: p, size, qty }) => `
-        <article class="cart-item">
-          <a class="cart-thumb" href="./product.html?id=${p.id}">
-            <img src="${MK.esc(p.imageUrl)}" alt="${MK.esc(p.name)}" loading="lazy">
-          </a>
-          <div class="cart-info">
-            <h2 class="cart-name">${MK.esc(p.name)}</h2>
-            <p class="cart-size">Розмір ${MK.esc(size)}${qty > 1 ? ` · ${qty} шт.` : ''}</p>
-            <p class="price cart-price">${MK.formatPrice(p.price * qty)}</p>
-          </div>
-          <button class="icon-btn cart-remove" type="button" data-id="${p.id}" data-size="${MK.esc(size)}"
-            aria-label="Видалити ${MK.esc(p.name)}">
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-          </button>
-        </article>`).join('');
+      list.replaceChildren(...items.map(({ product: p, size, qty }) => MK.el('article', { class: 'cart-item' },
+        MK.el('a', { class: 'cart-thumb', href: `./product.html?id=${encodeURIComponent(p.id)}` },
+          MK.el('img', { src: p.imageUrl, alt: p.name, loading: 'lazy' })),
+        MK.el('div', { class: 'cart-info' },
+          MK.el('h2', { class: 'cart-name' }, p.name),
+          MK.el('p', { class: 'cart-size' }, `Розмір ${size}${qty > 1 ? ` · ${qty} шт.` : ''}`),
+          MK.el('p', { class: 'price cart-price' }, MK.formatPrice(p.price * qty))),
+        MK.el('button', {
+          class: 'icon-btn cart-remove', type: 'button', 'data-id': p.id, 'data-size': size,
+          'aria-label': `Видалити ${p.name}`,
+        }, removeIcon()))));
 
       const total = MK.formatPrice(MKCart.getTotal());
       document.getElementById('subtotal').textContent = total;

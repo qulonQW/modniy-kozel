@@ -1,5 +1,8 @@
 // Shared UI: Telegram setup, bottom navigation, cart badges, product cards,
 // and the category filter. Each page adds its own script after this file.
+//
+// All DOM is built with createElement + textContent/setAttribute (MK.el);
+// no HTML strings are parsed, so product data can never inject markup.
 
 const MK = (() => {
   const tg = window.Telegram && window.Telegram.WebApp;
@@ -7,11 +10,12 @@ const MK = (() => {
   // only populated when the page is really running inside Telegram.
   const inTelegram = Boolean(tg && tg.initData);
 
+  // SVG path data for the 24x24 icons.
   const ICONS = {
-    home: '<path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/>',
-    catalog: '<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>',
-    cart: '<path d="M6 8h12l1 12H5zM9 8V6a3 3 0 0 1 6 0v2"/>',
-    orders: '<path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"/>',
+    home: 'M4 11l8-7 8 7v9h-5v-6H9v6H4z',
+    catalog: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+    cart: 'M6 8h12l1 12H5zM9 8V6a3 3 0 0 1 6 0v2',
+    orders: 'M6 3h12v18H6zM9 8h6M9 12h6M9 16h4',
   };
 
   const NAV_ITEMS = [
@@ -21,64 +25,100 @@ const MK = (() => {
     { key: 'orders', label: 'Замовлення', href: './orders.html' },
   ];
 
-  const icon = (name) =>
-    `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
-
-  const badge = () => '<span class="badge" data-cart-count hidden></span>';
-
-  function esc(value) {
-    const el = document.createElement('div');
-    el.textContent = value;
-    return el.innerHTML;
+  /**
+   * el('a', { class: 'card', href }, child, 'text', ...)
+   * Attributes are set in the given order; true sets an empty attribute,
+   * false/null/undefined skips it. String children become text nodes.
+   */
+  function el(tag, attrs, ...children) {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attrs || {})) {
+      if (value === false || value === null || value === undefined) continue;
+      node.setAttribute(name, value === true ? '' : String(value));
+    }
+    for (const child of children) {
+      if (child === null || child === undefined || child === false) continue;
+      node.append(child);
+    }
+    return node;
   }
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function icon(name) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', ICONS[name]);
+    svg.append(path);
+    return svg;
+  }
+
+  const badge = () => el('span', { class: 'badge', 'data-cart-count': true, hidden: true });
 
   function formatPrice(value) {
     return `${String(value).replace(/\B(?=(\d{3})+$)/g, ' ')} грн`;
   }
 
   function stockLabel(inStock) {
-    return `<span class="stock"><i class="dot ${inStock ? 'dot-in' : 'dot-out'}"></i>${
+    return el(
+      'span',
+      { class: 'stock' },
+      el('i', { class: `dot ${inStock ? 'dot-in' : 'dot-out'}` }),
       inStock ? 'Є' : 'Немає'
-    }</span>`;
+    );
   }
 
   function productCard(p) {
-    return `
-      <a class="card" href="./product.html?id=${p.id}">
-        <div class="card-media">
-          <img src="${esc(p.imageUrl)}" alt="${esc(p.name)}" loading="lazy">
-          <span class="tag">${esc(p.category)}</span>
-        </div>
-        <div class="card-body">
-          <h3 class="card-name">${esc(p.name)}</h3>
-          <div class="card-meta">
-            <span class="price">${formatPrice(p.price)}</span>
-            ${stockLabel(p.inStock)}
-          </div>
-        </div>
-      </a>`;
+    return el(
+      'a',
+      { class: 'card', href: `./product.html?id=${encodeURIComponent(p.id)}` },
+      el(
+        'div',
+        { class: 'card-media' },
+        el('img', { src: p.imageUrl, alt: p.name, loading: 'lazy' }),
+        el('span', { class: 'tag' }, p.category)
+      ),
+      el(
+        'div',
+        { class: 'card-body' },
+        el('h3', { class: 'card-name' }, p.name),
+        el(
+          'div',
+          { class: 'card-meta' },
+          el('span', { class: 'price' }, formatPrice(p.price)),
+          stockLabel(p.inStock)
+        )
+      )
+    );
   }
 
-  function renderGrid(el, products) {
-    el.className = products.length ? 'grid' : '';
-    el.innerHTML = products.length
-      ? products.map(productCard).join('')
-      : '<p class="empty-note">У цій категорії поки нічого немає.</p>';
+  function renderGrid(container, products) {
+    container.className = products.length ? 'grid' : '';
+    container.replaceChildren(
+      ...(products.length
+        ? products.map(productCard)
+        : [el('p', { class: 'empty-note' }, 'У цій категорії поки нічого немає.')])
+    );
   }
 
   // Tapping the active pill clears it, which is how a shopper gets back to
   // the unfiltered list. Calls onChange with the category, or null when cleared.
-  function mountFilter(el, onChange) {
+  function mountFilter(container, onChange) {
     let active = null;
-    el.innerHTML = CATEGORIES.map(
-      (c) => `<button class="pill" type="button" aria-pressed="false" data-category="${esc(c)}">${esc(c)}</button>`
-    ).join('');
+    container.replaceChildren(
+      ...CATEGORIES.map((c) =>
+        el('button', { class: 'pill', type: 'button', 'aria-pressed': 'false', 'data-category': c }, c)
+      )
+    );
 
-    el.addEventListener('click', (event) => {
+    container.addEventListener('click', (event) => {
       const pill = event.target.closest('.pill');
       if (!pill) return;
       active = pill.dataset.category === active ? null : pill.dataset.category;
-      el.querySelectorAll('.pill').forEach((p) =>
+      container.querySelectorAll('.pill').forEach((p) =>
         p.setAttribute('aria-pressed', String(p.dataset.category === active))
       );
       onChange(active);
@@ -90,18 +130,21 @@ const MK = (() => {
     if (!mount) return;
     const current = mount.dataset.nav;
     mount.className = 'bottom-nav';
-    mount.innerHTML = NAV_ITEMS.map(
-      (item) => `
-        <a class="nav-item" href="${item.href}"${item.key === current ? ' aria-current="page"' : ''}>
-          <span class="nav-icon">${icon(item.key)}${item.key === 'cart' ? badge() : ''}</span>
-          <span>${item.label}</span>
-        </a>`
-    ).join('');
+    mount.replaceChildren(
+      ...NAV_ITEMS.map((item) =>
+        el(
+          'a',
+          { class: 'nav-item', href: item.href, 'aria-current': item.key === current && 'page' },
+          el('span', { class: 'nav-icon' }, icon(item.key), item.key === 'cart' && badge()),
+          el('span', null, item.label)
+        )
+      )
+    );
   }
 
   function renderCartLinks() {
     document.querySelectorAll('[data-cart-link]').forEach((link) => {
-      link.innerHTML = icon('cart') + badge();
+      link.replaceChildren(icon('cart'), badge());
     });
   }
 
@@ -166,21 +209,16 @@ const MK = (() => {
   }
 
   // Shown in place of a page's content when GET /api/products fails.
-  function showLoadError(el) {
-    const title = document.createElement('h2');
-    title.className = 'empty-title';
-    title.textContent = 'Не вдалося завантажити товари';
-    const note = document.createElement('p');
-    note.className = 'summary-note';
-    note.textContent = 'Перевірте з’єднання з інтернетом і спробуйте ще раз.';
-    const retry = document.createElement('button');
-    retry.className = 'btn btn-inline';
-    retry.type = 'button';
-    retry.textContent = 'Спробувати ще раз';
+  function showLoadError(container) {
+    const retry = el('button', { class: 'btn btn-inline', type: 'button' }, 'Спробувати ще раз');
     retry.addEventListener('click', () => location.reload());
-    el.classList.add('empty');
-    el.replaceChildren(title, note, retry);
-    el.hidden = false;
+    container.classList.add('empty');
+    container.replaceChildren(
+      el('h2', { class: 'empty-title' }, 'Не вдалося завантажити товари'),
+      el('p', { class: 'summary-note' }, 'Перевірте з’єднання з інтернетом і спробуйте ще раз.'),
+      retry
+    );
+    container.hidden = false;
   }
 
   setupTelegram();
@@ -195,7 +233,7 @@ const MK = (() => {
   window.addEventListener('pageshow', refreshCartBadges);
 
   return {
-    esc,
+    el,
     formatPrice,
     stockLabel,
     renderGrid,

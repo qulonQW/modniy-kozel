@@ -86,7 +86,7 @@
       document.getElementById('category').textContent = p.category;
       document.getElementById('name').textContent = p.name;
       document.getElementById('price').textContent = MK.formatPrice(p.price);
-      document.getElementById('stock').innerHTML = MK.stockLabel(p.inStock);
+      document.getElementById('stock').replaceChildren(MK.stockLabel(p.inStock));
       document.getElementById('description').textContent = p.description;
 
       const sizes = document.getElementById('sizes');
@@ -95,9 +95,9 @@
       let selected = null;
       let added = false;
 
-      sizes.innerHTML = p.sizes.map((size) => `
-        <button class="size-chip" type="button" aria-pressed="false" data-size="${MK.esc(size)}"
-          ${p.inStock ? '' : 'disabled'}>${MK.esc(size)}</button>`).join('');
+      sizes.replaceChildren(...p.sizes.map((size) => MK.el('button', {
+        class: 'size-chip', type: 'button', 'aria-pressed': 'false', 'data-size': size, disabled: !p.inStock,
+      }, size)));
 
       if (!p.inStock) {
         cta.textContent = 'Немає в наявності';
