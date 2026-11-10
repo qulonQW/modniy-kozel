@@ -1,0 +1,137 @@
+[
+  {
+    "id": "sneaker-01",
+    "title": "Low-top кросівки, сіро-фіолетові",
+    "description": "Низькі кросівки на шнурівці з масивною підошвою.",
+    "category": "Взуття",
+    "price_retail": 2499,
+    "sizes": [
+      40,
+      41,
+      42,
+      43,
+      44,
+      45
+    ],
+    "in_stock": true,
+    "popular": true,
+    "images": [
+      "public/images/products/sneaker-01.jpg"
+    ]
+  },
+  {
+    "id": "sneaker-02",
+    "title": "Кросівки, чорні з білим",
+    "description": "Низькі кросівки на шнурівці з контрастною білою підошвою.",
+    "category": "Взуття",
+    "price_retail": 2499,
+    "sizes": [
+      40,
+      41,
+      42,
+      43,
+      44,
+      45
+    ],
+    "in_stock": true,
+    "popular": true,
+    "images": [
+      "public/images/products/sneaker-02.jpg"
+    ]
+  },
+  {
+    "id": "tshirt-01",
+    "title": "Футболка, модель 1",
+    "description": "Футболка з невеликою нашивкою на грудях.",
+    "category": "Одяг",
+    "price_retail": 600,
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "in_stock": true,
+    "popular": true,
+    "images": [
+      "public/images/products/tshirt-01.jpg"
+    ]
+  },
+  {
+    "id": "tshirt-02",
+    "title": "Футболка, модель 2",
+    "description": "Футболка з великим принтом на грудях.",
+    "category": "Одяг",
+    "price_retail": 600,
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "in_stock": true,
+    "popular": true,
+    "images": [
+      "public/images/products/tshirt-02.jpg"
+    ]
+  },
+  {
+    "id": "tshirt-03",
+    "title": "Футболка, модель 3",
+    "description": "Футболка з великим написом на грудях.",
+    "category": "Одяг",
+    "price_retail": 600,
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+      "public/images/products/tshirt-03.jpg"
+    ]
+  },
+  {
+    "id": "tshirt-04",
+    "title": "Футболка, модель 4",
+    "description": "Футболка з об’ємним графічним принтом.",
+    "category": "Одяг",
+    "price_retail": 600,
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+      "public/images/products/tshirt-04.jpg"
+    ]
+  },
+  {
+    "id": "tshirt-05",
+    "title": "Футболка, модель 5",
+    "description": "Футболка з малим написом на грудях і лінійним принтом унизу.",
+    "category": "Одяг",
+    "price_retail": 600,
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+    ],
+    "in_stock": true,
+    "popular": false,
+    "images": [
+      "public/images/products/tshirt-05.jpg"
+    ]
+  }
+]

@@ -3,3 +3,18 @@ node_modules/
 .vercel/
 .DS_Store
 Thumbs.db
+# backend
+backend/.env
+backend/.venv/
+backend/data/
+backend/uploads/
+*.sqlite3
+*.sqlite3-*
+__pycache__/
+.pytest_cache/
+
+# supplier import (raw export and private costs never go to git)
+import/raw/
+import/private/
+import/products.public.json
+import/import_report.md

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <title>Адмінка · Modniy Kozel</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <div class="notice" id="env-notice" hidden></div>
+
+  <!-- List view -->
+  <main id="list-view">
+    <header class="topbar">
+      <h1>Товари</h1>
+      <button class="btn btn-small" type="button" id="new-product">+ Новий</button>
+    </header>
+
+    <div class="toolbar">
+      <input class="input" id="search" type="search" placeholder="Пошук за назвою або описом" maxlength="100" autocomplete="off">
+      <div class="filters">
+        <select class="input select" id="filter-status" aria-label="Статус">
+          <option value="">Усі статуси</option>
+          <option value="draft">Чернетки</option>
+          <option value="published">Опубліковані</option>
+          <option value="hidden">Приховані</option>
+        </select>
+        <select class="input select" id="filter-category" aria-label="Категорія">
+          <option value="">Усі категорії</option>
+          <option value="Взуття">Взуття</option>
+          <option value="Одяг">Одяг</option>
+        </select>
+      </div>
+      <button class="pill" type="button" id="filter-review" aria-pressed="false">⚠ Потребує перевірки</button>
+    </div>
+
+    <p class="summary" id="summary"></p>
+    <ul class="product-list" id="product-list"></ul>
+    <button class="btn btn-ghost" type="button" id="load-more" hidden>Показати ще</button>
+
+    <div class="bulkbar" id="bulkbar" hidden>
+      <span id="bulk-count"></span>
+      <button class="btn btn-small" type="button" id="bulk-publish">Опублікувати</button>
+      <button class="btn btn-small btn-ghost" type="button" id="bulk-hide">Приховати</button>
+      <button class="btn btn-small btn-ghost" type="button" id="bulk-clear" aria-label="Зняти виділення">✕</button>
+    </div>
+  </main>
+
+  <!-- Edit view -->
+  <main id="edit-view" hidden>
+    <header class="topbar">
+      <button class="link-btn back-link" type="button" id="back">← Назад</button>
+      <h1 id="edit-title">Товар</h1>
+    </header>
+
+    <section class="review-box" id="review-box" hidden>
+      <h2>Потребує перевірки</h2>
+      <ul id="review-reasons"></ul>
+      <button class="btn btn-small btn-ghost" type="button" id="confirm-review">Позначити перевіреним</button>
+    </section>
+
+    <form id="edit-form" novalidate>
+      <label class="field">
+        <span class="label">Назва</span>
+        <input class="input" name="title" required maxlength="120">
+      </label>
+      <label class="field">
+        <span class="label">Опис</span>
+        <textarea class="input textarea" name="description" maxlength="2000" rows="4"></textarea>
+      </label>
+      <div class="row">
+        <label class="field">
+          <span class="label">Категорія</span>
+          <select class="input select" name="category">
+            <option value="Взуття">Взуття</option>
+            <option value="Одяг">Одяг</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="label">Статус</span>
+          <select class="input select" name="status">
+            <option value="draft">Чернетка</option>
+            <option value="published">Опубліковано</option>
+            <option value="hidden">Приховано</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">
+          <span class="label">Ціна для покупця, грн</span>
+          <input class="input" name="price_retail" type="number" inputmode="numeric" min="0" step="1" required>
+        </label>
+        <label class="field">
+          <span class="label">Ціна постачальника, грн</span>
+          <input class="input" name="price_supplier" type="number" inputmode="numeric" min="0" step="1" placeholder="—">
+        </label>
+      </div>
+      <p class="hint" id="price-hint"></p>
+      <label class="field">
+        <span class="label">Розміри (через кому)</span>
+        <input class="input" name="sizes" placeholder="S, M, L або 40, 41, 42" maxlength="300">
+      </label>
+      <div class="checks">
+        <label class="check"><input type="checkbox" name="in_stock"> В наявності</label>
+        <label class="check"><input type="checkbox" name="popular"> Популярне (на головній)</label>
+      </div>
+      <p class="field-error" id="form-error" hidden></p>
+      <button class="btn" type="submit" id="save">Зберегти</button>
+    </form>
+
+    <section class="images" id="images-section" hidden>
+      <h2>Фото</h2>
+      <p class="hint">Перше фото — обкладинка. JPG, PNG або WebP, до 5 МБ.</p>
+      <ul class="image-grid" id="image-grid"></ul>
+      <label class="btn btn-ghost upload-btn">
+        <input type="file" id="upload" accept="image/jpeg,image/png,image/webp" multiple hidden>
+        + Додати фото
+      </label>
+    </section>
+
+    <div class="danger-zone" id="danger-zone" hidden>
+      <button class="btn btn-danger" type="button" id="delete-product">Видалити товар</button>
+    </div>
+    <p class="meta" id="edit-meta"></p>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="./admin.js"></script>
+</body>
+</html>

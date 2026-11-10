@@ -1,0 +1,8 @@
+fastapi==0.162.3
+uvicorn==0.54.0
+pydantic==2.14.3
+python-multipart==0.0.33
+
+# tests only (httpx is required by fastapi.testclient)
+pytest==9.2.0
+httpx==0.28.1
