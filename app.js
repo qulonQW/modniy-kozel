@@ -165,12 +165,32 @@ const MK = (() => {
     );
   }
 
+  // Shown in place of a page's content when GET /api/products fails.
+  function showLoadError(el) {
+    const title = document.createElement('h2');
+    title.className = 'empty-title';
+    title.textContent = 'Не вдалося завантажити товари';
+    const note = document.createElement('p');
+    note.className = 'summary-note';
+    note.textContent = 'Перевірте з’єднання з інтернетом і спробуйте ще раз.';
+    const retry = document.createElement('button');
+    retry.className = 'btn btn-inline';
+    retry.type = 'button';
+    retry.textContent = 'Спробувати ще раз';
+    retry.addEventListener('click', () => location.reload());
+    el.classList.add('empty');
+    el.replaceChildren(title, note, retry);
+    el.hidden = false;
+  }
+
   setupTelegram();
   setupPhotoFallback();
   renderNav();
   renderCartLinks();
   setupBackNavigation();
   refreshCartBadges();
+  // The cart count depends on the product list, which arrives asynchronously.
+  PRODUCTS_READY.then(refreshCartBadges);
   // Pages restored from the back/forward cache keep their old badge otherwise.
   window.addEventListener('pageshow', refreshCartBadges);
 
@@ -181,6 +201,7 @@ const MK = (() => {
     renderGrid,
     mountFilter,
     refreshCartBadges,
+    showLoadError,
     haptic,
   };
 })();

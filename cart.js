@@ -1,6 +1,7 @@
 // localStorage-backed cart.
-// Cart lines are { id, size, qty }; product details are looked up from PRODUCTS,
-// so a price change in products.js applies to items already in the cart.
+// Cart lines are { id, size, qty }; product details are looked up from PRODUCTS
+// (loaded from the API), so a price change in the admin applies to items
+// already in the cart.
 
 function readList(key) {
   try {

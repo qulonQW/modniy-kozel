@@ -61,13 +61,18 @@
   <script src="./app.js"></script>
   <script>
     const id = new URLSearchParams(location.search).get('id');
-    const product = PRODUCTS.find((p) => p.id === id);
-
-    if (!product) {
-      document.getElementById('not-found').hidden = false;
-    } else {
-      renderProduct(product);
-    }
+    PRODUCTS_READY.then((loaded) => {
+      if (!loaded) {
+        MK.showLoadError(document.getElementById('not-found'));
+        return;
+      }
+      const product = PRODUCTS.find((p) => p.id === id);
+      if (!product) {
+        document.getElementById('not-found').hidden = false;
+      } else {
+        renderProduct(product);
+      }
+    });
 
     function renderProduct(p) {
       document.title = `${p.name} — Modniy Kozel`;

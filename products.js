@@ -1,86 +1,52 @@
-// Demo catalogue. Hardcoded: the demo has no backend.
+// Storefront config and product data source.
+//
+// API_BASE_URL: origin of the backend, e.g. 'https://api.example.com'.
+// Leave empty when the backend serves the storefront itself (same origin).
+const API_BASE_URL = '';
 
 const CATEGORIES = ['Взуття', 'Одяг'];
 
-const SHOE_SIZES = [40, 41, 42, 43, 44, 45];
-const CLOTHING_SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
+// Filled from GET /api/products (published products only). The array object
+// never changes, so code holding a reference (cart.js) sees the loaded data.
+const PRODUCTS = [];
 
-const PRODUCTS = [
-  {
-    id: 'sneaker-01',
-    name: 'Low-top кросівки, сіро-фіолетові',
-    category: 'Взуття',
-    price: 2499,
-    sizes: SHOE_SIZES,
-    inStock: true,
-    popular: true,
-    imageUrl: './public/images/products/sneaker-01.jpg',
-    description: 'Низькі кросівки на шнурівці з масивною підошвою.',
-  },
-  {
-    id: 'sneaker-02',
-    name: 'Кросівки, чорні з білим',
-    category: 'Взуття',
-    price: 2499,
-    sizes: SHOE_SIZES,
-    inStock: true,
-    popular: true,
-    imageUrl: './public/images/products/sneaker-02.jpg',
-    description: 'Низькі кросівки на шнурівці з контрастною білою підошвою.',
-  },
-  {
-    id: 'tshirt-01',
-    name: 'Футболка, модель 1',
-    category: 'Одяг',
-    price: 600,
-    sizes: CLOTHING_SIZES,
-    inStock: true,
-    popular: true,
-    imageUrl: './public/images/products/tshirt-01.jpg',
-    description: 'Футболка з невеликою нашивкою на грудях.',
-  },
-  {
-    id: 'tshirt-02',
-    name: 'Футболка, модель 2',
-    category: 'Одяг',
-    price: 600,
-    sizes: CLOTHING_SIZES,
-    inStock: true,
-    popular: true,
-    imageUrl: './public/images/products/tshirt-02.jpg',
-    description: 'Футболка з великим принтом на грудях.',
-  },
-  {
-    id: 'tshirt-03',
-    name: 'Футболка, модель 3',
-    category: 'Одяг',
-    price: 600,
-    sizes: CLOTHING_SIZES,
-    inStock: true,
-    popular: false,
-    imageUrl: './public/images/products/tshirt-03.jpg',
-    description: 'Футболка з великим написом на грудях.',
-  },
-  {
-    id: 'tshirt-04',
-    name: 'Футболка, модель 4',
-    category: 'Одяг',
-    price: 600,
-    sizes: CLOTHING_SIZES,
-    inStock: true,
-    popular: false,
-    imageUrl: './public/images/products/tshirt-04.jpg',
-    description: 'Футболка з об’ємним графічним принтом.',
-  },
-  {
-    id: 'tshirt-05',
-    name: 'Футболка, модель 5',
-    category: 'Одяг',
-    price: 600,
-    sizes: CLOTHING_SIZES,
-    inStock: true,
-    popular: false,
-    imageUrl: './public/images/products/tshirt-05.jpg',
-    description: 'Футболка з малим написом на грудях і лінійним принтом унизу.',
-  },
-];
+// Resolves to true when products loaded, false when the API is unreachable.
+const PRODUCTS_READY = (async () => {
+  const base = API_BASE_URL || location.origin;
+  const toUrl = (path) => {
+    if (typeof path !== 'string' || !path) return '';
+    const url = new URL(path, `${base}/`);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+  };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/products`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data)) throw new Error('unexpected response');
+    PRODUCTS.push(
+      ...data.map((p) => ({
+        id: String(p.id),
+        name: String(p.name),
+        description: String(p.description || ''),
+        category: String(p.category),
+        price: Number(p.price),
+        sizes: Array.isArray(p.sizes) ? p.sizes.map(String) : [],
+        inStock: Boolean(p.inStock),
+        popular: Boolean(p.popular),
+        imageUrl: toUrl(p.imageUrl),
+        images: Array.isArray(p.images) ? p.images.map(toUrl).filter(Boolean) : [],
+      }))
+    );
+    return true;
+  } catch (err) {
+    console.warn('Products could not be loaded:', err.name);
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+})();

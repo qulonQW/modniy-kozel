@@ -74,11 +74,15 @@
   <script>
     const form = document.getElementById('form');
 
-    if (MKCart.getCount() === 0) {
-      document.getElementById('empty').hidden = false;
-    } else {
-      document.getElementById('checkout').hidden = false;
-    }
+    PRODUCTS_READY.then((loaded) => {
+      if (!loaded) {
+        MK.showLoadError(document.getElementById('empty'));
+      } else if (MKCart.getCount() === 0) {
+        document.getElementById('empty').hidden = false;
+      } else {
+        document.getElementById('checkout').hidden = false;
+      }
+    });
 
     // Accepts the digits however they were typed or pasted: 50…, 050…, +38050…
     form.elements.phone.addEventListener('input', (event) => {

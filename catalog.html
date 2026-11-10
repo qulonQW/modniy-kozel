@@ -37,8 +37,14 @@
       MK.renderGrid(grid, category ? PRODUCTS.filter((p) => p.category === category) : PRODUCTS);
     }
 
-    MK.mountFilter(document.getElementById('filter'), show);
-    show(null);
+    PRODUCTS_READY.then((loaded) => {
+      if (!loaded) {
+        MK.showLoadError(grid);
+        return;
+      }
+      MK.mountFilter(document.getElementById('filter'), show);
+      show(null);
+    });
   </script>
 </body>
 </html>

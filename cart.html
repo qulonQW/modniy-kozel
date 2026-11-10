@@ -78,8 +78,16 @@
       render();
     });
 
-    render();
-    window.addEventListener('pageshow', render);
+    PRODUCTS_READY.then((loaded) => {
+      if (!loaded) {
+        // Not "cart is empty": the cart is still there, prices just can't load.
+        document.getElementById('filled').hidden = true;
+        MK.showLoadError(document.getElementById('empty'));
+        return;
+      }
+      render();
+      window.addEventListener('pageshow', render);
+    });
   </script>
 </body>
 </html>
