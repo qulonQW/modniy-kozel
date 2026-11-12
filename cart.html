@@ -18,6 +18,7 @@
     </header>
 
     <main>
+      <p class="empty-note page-loading" id="loading">Завантаження…</p>
       <div class="section" id="filled" hidden>
         <div class="notices" id="notices"></div>
         <div class="cart-list" id="list"></div>
@@ -121,6 +122,7 @@
     });
 
     PRODUCTS_READY.then((loaded) => {
+      document.getElementById('loading').hidden = true;
       if (!loaded) {
         // Not "cart is empty": the cart is still there, prices just can't load.
         document.getElementById('filled').hidden = true;

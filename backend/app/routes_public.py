@@ -45,7 +45,7 @@ def list_products(
     return repo.list_published(conn, wanted)
 
 
-@router.get("/me", response_model=Me)
+@router.get("/me", response_model=Me, dependencies=[Depends(limit("me"))])
 def me(request: Request, response: Response):
     """Never 401/403: shoppers without initData or with a non-admin ID just
     get is_admin=false, so the storefront works the same for them."""
@@ -77,7 +77,9 @@ def catalog(
     return CatalogPage(items=items, total=total)
 
 
-@router.get("/products/{product_id}", response_model=PublicProduct)
+@router.get(
+    "/products/{product_id}", response_model=PublicProduct, dependencies=[Depends(limit("catalog"))]
+)
 def get_product(product_id: str, response: Response, conn: sqlite3.Connection = Depends(get_db)):
     _no_cache(response)
     # Drafts, hidden and missing ids all look the same from outside.

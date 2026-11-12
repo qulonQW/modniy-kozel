@@ -54,6 +54,8 @@
     <button class="btn" type="button" id="cta"></button>
   </div>
 
+  <p class="empty-note page-loading" id="loading">Завантаження…</p>
+
   <div class="page empty" id="not-found" hidden>
     <h1 class="empty-title">Товар не знайдено</h1>
     <a class="btn btn-inline" href="./catalog.html">До каталогу</a>
@@ -67,7 +69,10 @@
 
     // One request for this product (full-size photos); the cart badge has its own.
     (async () => {
+      const loading = document.getElementById('loading');
+      const done = () => { loading.hidden = true; };
       if (!id || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) {
+        done();
         document.getElementById('not-found').hidden = false;
         return;
       }
@@ -76,15 +81,18 @@
           headers: { Accept: 'application/json' },
         });
         if (res.status === 404) {
+          done();
           document.getElementById('not-found').hidden = false;
           return;
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const product = normalizeProduct(await res.json());
         addProducts([product]); // so the cart badge counts it once added
+        done();
         renderProduct(product);
       } catch (err) {
         console.warn('Product could not be loaded:', err.name);
+        done();
         MK.showLoadError(document.getElementById('not-found'));
       }
     })();

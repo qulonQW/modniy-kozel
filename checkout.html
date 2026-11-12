@@ -74,6 +74,8 @@
     </form>
   </div>
 
+  <p class="empty-note page-loading" id="loading">Завантаження…</p>
+
   <div class="page empty" id="empty" hidden>
     <h1 class="empty-title">Кошик порожній</h1>
     <a class="btn btn-inline" href="./catalog.html">До каталогу</a>
@@ -124,6 +126,7 @@
     }
 
     PRODUCTS_READY.then((loaded) => {
+      document.getElementById('loading').hidden = true;
       if (!loaded) {
         MK.showLoadError(document.getElementById('empty'));
       } else if (MKCart.getOrderable().length === 0) {

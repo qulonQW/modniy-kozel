@@ -20,6 +20,7 @@ LIMITS = {
     "favorites": (120, 60.0),
     "orders": (10, 60.0),  # POST /api/orders per IP
     "orders_read": (60, 60.0),
+    "me": (120, 60.0),
 }
 
 

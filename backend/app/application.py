@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import notify, routes_admin, routes_public, routes_user
+from . import errors, notify, routes_admin, routes_public, routes_user
 from .config import REPO_DIR, Settings, validate_settings
 from .db import connect, init_db
 from .ratelimit import build_limiters
@@ -107,6 +107,7 @@ def create_app(settings: Settings) -> FastAPI:
     # JSON lists and the storefront's HTML/JS/CSS; images are already compressed.
     app.add_middleware(GZipMiddleware, minimum_size=1024)
 
+    errors.install(app)  # one error format; JSON body size limit
     app.state.limiters = build_limiters()
     app.include_router(routes_public.router)
     app.include_router(routes_admin.router)

@@ -1113,3 +1113,9 @@ img {
   color: var(--text);
   overflow-wrap: anywhere;
 }
+
+/* Shown until a page's first request finishes. */
+.page-loading {
+  padding: 48px var(--gutter);
+  text-align: center;
+}
