@@ -1,0 +1,17 @@
+[Unit]
+Description=Modniy Kozel nightly database backup
+
+[Service]
+Type=oneshot
+User=tovarka
+Group=tovarka
+WorkingDirectory=/opt/tovarka
+Environment=PYTHONDONTWRITEBYTECODE=1
+# Database only (about 1 MB a day). Photos: copy them off the server now and
+# then, see RUNBOOK "Deploy" -> backups.
+ExecStart=/opt/tovarka/backend/.venv/bin/python tools/backup.py --db-only
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tovarka

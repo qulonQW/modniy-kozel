@@ -140,3 +140,11 @@ def test_admin_age_is_enforced_but_user_age_is_longer(client, shop):
     assert client.get("/api/admin/orders", headers=two_hours_old).status_code == 401
     assert client.get("/api/orders/mine", headers=two_hours_old).status_code == 200
     assert client.get("/api/me", headers=two_hours_old).json() == {"is_admin": False}
+
+
+def test_tests_never_see_real_data_paths(hermetic_data_paths):
+    from app.config import load_settings
+
+    settings = load_settings()  # reads backend/.env, but env vars win
+    assert hermetic_data_paths in settings.database_path.parents
+    assert hermetic_data_paths in settings.uploads_dir.parents or settings.uploads_dir.parent == hermetic_data_paths

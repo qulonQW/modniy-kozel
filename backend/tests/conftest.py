@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,25 @@ from fastapi.testclient import TestClient
 from app.application import create_app
 from app.config import Settings
 from app.db import connect, init_db, search_key
+
+HERMETIC_KEYS = ("DATABASE_PATH", "UPLOADS_DIR")
+
+
+@pytest.fixture(autouse=True, scope="session")
+def hermetic_data_paths(tmp_path_factory):
+    """Tests never touch real data, even on the server, where backend/.env
+    points at the production database and photos: environment variables win
+    over .env, and subprocesses started by tests inherit them."""
+    base = tmp_path_factory.mktemp("hermetic")
+    saved = {key: os.environ.get(key) for key in HERMETIC_KEYS}
+    os.environ["DATABASE_PATH"] = str(base / "never-production.sqlite3")
+    os.environ["UPLOADS_DIR"] = str(base / "uploads")
+    yield base
+    for key, value in saved.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
 
 ORIGIN = "https://shop.example"
 TEST_BOT_TOKEN = "123456789:AAFakeTokenForTestsOnly_abcdefghijklmn"

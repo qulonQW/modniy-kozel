@@ -1,0 +1,32 @@
+[Unit]
+Description=Modniy Kozel Mini App (FastAPI, one process)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=tovarka
+Group=tovarka
+WorkingDirectory=/opt/tovarka/backend
+Environment=PYTHONDONTWRITEBYTECODE=1
+# ONE worker: the rate limiter and the notification retry loop live in memory.
+# Caddy on the same host sends X-Forwarded-For; trust it only from 127.0.0.1.
+ExecStart=/opt/tovarka/backend/.venv/bin/python -m uvicorn app.main:app \
+    --host 127.0.0.1 --port 8000 --workers 1 \
+    --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header
+Restart=on-failure
+RestartSec=3
+
+# Hardening: the code is read-only, only the data folder is writable.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tovarka
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

@@ -101,7 +101,59 @@ RUN_E2E=1 .venv/Scripts/python -m pytest                         # + browser e2e
 Tests never call Telegram (a fake notifier is installed) and use temporary
 databases only.
 
-## 8. Where things are
+## 8. Deploy to a VPS (production)
+
+Layout on the server: Caddy (HTTPS, Let's Encrypt) → uvicorn on
+`127.0.0.1:8000`, one process under systemd as user `tovarka`.
+Code: `/opt/tovarka` (git clone of `main`). Data: `/var/lib/tovarka/data`
+(database + nightly backups) and `/var/lib/tovarka/uploads` (photos), so a
+code update never touches data.
+
+1. **Server.** Any VPS with Ubuntu 24.04 (or Debian 12+), ≥ 1 GB RAM,
+   ≥ 20 GB disk, SSH as root on port 22 (the firewall opens only 22, 80, 443).
+2. **Host name.** No domain needed: for IP `203.0.113.7` use
+   `203-0-113-7.sslip.io` (resolves to that IP automatically). Alternative: a
+   free DuckDNS name pointed at the IP. Own domain later: an A record to the
+   IP, then repeat step 3 with the new name and update BotFather.
+3. **Install** (on the server, as root):
+   ```bash
+   apt-get update && apt-get install -y git
+   git clone https://github.com/qulonQW/modniy-kozel.git /opt/tovarka
+   bash /opt/tovarka/deploy/setup.sh 203-0-113-7.sslip.io
+   nano /opt/tovarka/backend/.env        # BOT_TOKEN, ADMIN_TELEGRAM_IDS
+   ```
+   setup.sh installs Python, Caddy and the firewall, runs the test suite on
+   the server's Python (aborts if anything fails), creates `.env`
+   (`ENV=prod`, `ALLOWED_ORIGIN=https://<host>`, data paths) and the services.
+   Private GitHub repository: create a read-only *deploy key* (repo →
+   Settings → Deploy keys) and clone with the `git@github.com:` URL instead.
+4. **Move the data** (once). On your computer, local server stopped, PowerShell
+   in the project folder:
+   ```powershell
+   backend\.venv\Scripts\python tools\backup.py        # prints: done: ...\backups\<time>
+   tar -czf shop-data.tar.gz -C backend\data\backups\<time> shop.sqlite3 uploads
+   scp shop-data.tar.gz root@203.0.113.7:/root/
+   ssh root@203.0.113.7 "bash /opt/tovarka/deploy/import-data.sh /root/shop-data.tar.gz"
+   ```
+   import-data.sh checks the database, refuses to overwrite an existing one,
+   prints product/photo counts and starts the shop.
+5. **Check:** `https://<host>/` opens with a valid certificate;
+   `systemctl status tovarka`; `journalctl -u tovarka -f` for logs.
+6. **Telegram:** BotFather → the bot → Menu Button / Mini App URL →
+   `https://<host>/`. Both admins press Start in that bot. Test with the
+   checklist, then switch to the real bot (section 4).
+7. **Updates:** push to `main`, then on the server
+   `bash /opt/tovarka/deploy/update.sh` (pull → tests → DB backup → restart;
+   nothing restarts if a test fails).
+8. **Backups on the server:** the database is copied every night at 03:30 to
+   `/var/lib/tovarka/data/backups/` (`systemctl list-timers tovarka-backup`).
+   Photos are not in the nightly copy — download them now and then:
+   `scp -r root@<ip>:/var/lib/tovarka/uploads D:\mk-backups\`.
+
+After the move the server's database is the only real one: do product edits
+in the server admin, not in a local copy.
+
+## 9. Where things are
 
 - Order texts for shoppers (labels, confirmation, statuses): `texts.js`
 - Bot message to admins: `backend/app/notify.py` (`order_message`)

@@ -1,0 +1,3 @@
+# Deploy scripts and units run on Linux: keep LF line endings.
+*.sh text eol=lf
+deploy/* text eol=lf
