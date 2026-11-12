@@ -19,23 +19,35 @@ def image_url(path: str) -> str:
     return "/" + path
 
 
-def images_by_product(conn: sqlite3.Connection, ids: list[str]) -> dict[str, list[str]]:
-    result: dict[str, list[str]] = {pid: [] for pid in ids}
+def images_by_product(
+    conn: sqlite3.Connection, ids: list[str], cover_only: bool = False
+) -> dict[str, list[sqlite3.Row]]:
+    """product id -> image rows (path, thumb_path) in display order.
+    cover_only: just the first image of each product (list responses)."""
+    result: dict[str, list[sqlite3.Row]] = {pid: [] for pid in ids}
     if not ids:
         return result
     placeholders = ",".join("?" * len(ids))
+    first = (
+        " AND i.id = (SELECT j.id FROM product_images j WHERE j.product_id = i.product_id "
+        "ORDER BY j.position, j.id LIMIT 1)"
+        if cover_only
+        else ""
+    )
     rows = conn.execute(
-        f"SELECT product_id, path FROM product_images WHERE product_id IN ({placeholders}) "
-        "ORDER BY product_id, position, id",
+        f"SELECT i.product_id, i.path, i.thumb_path FROM product_images i "
+        f"WHERE i.product_id IN ({placeholders}){first} ORDER BY i.product_id, i.position, i.id",
         ids,
     )
     for row in rows:
-        result[row["product_id"]].append(row["path"])
+        result[row["product_id"]].append(row)
     return result
 
 
-def to_public(row: sqlite3.Row, image_paths: list[str]) -> PublicProduct:
-    urls = [image_url(p) for p in image_paths]
+def to_public(row: sqlite3.Row, images: list[sqlite3.Row], with_gallery: bool = True) -> PublicProduct:
+    """with_gallery=False (lists): only the cover and its thumbnail, no
+    "images" array, which keeps list payloads small."""
+    cover = images[0] if images else None
     return PublicProduct(
         id=row["id"],
         name=row["title"],
@@ -45,15 +57,29 @@ def to_public(row: sqlite3.Row, image_paths: list[str]) -> PublicProduct:
         sizes=json.loads(row["sizes"]),
         inStock=bool(row["in_stock"]),
         popular=bool(row["popular"]),
-        imageUrl=urls[0] if urls else None,
-        images=urls,
+        imageUrl=image_url(cover["path"]) if cover else None,
+        thumbUrl=image_url(cover["thumb_path"] or cover["path"]) if cover else None,
+        images=[image_url(i["path"]) for i in images] if with_gallery else [],
     )
 
 
-def list_published(conn: sqlite3.Connection) -> list[PublicProduct]:
-    rows = conn.execute(f"SELECT * FROM products p WHERE p.status = 'published' {ORDER_BY}").fetchall()
-    images = images_by_product(conn, [r["id"] for r in rows])
-    return [to_public(r, images[r["id"]]) for r in rows]
+def _public_list(conn: sqlite3.Connection, rows: list[sqlite3.Row]) -> list[PublicProduct]:
+    images = images_by_product(conn, [r["id"] for r in rows], cover_only=True)
+    return [to_public(r, images[r["id"]], with_gallery=False) for r in rows]
+
+
+def list_published(conn: sqlite3.Connection, ids: list[str] | None = None) -> list[PublicProduct]:
+    """All published products, or only the given ids (cart lookups)."""
+    if ids is None:
+        rows = conn.execute(f"SELECT * FROM products p WHERE p.status = 'published' {ORDER_BY}").fetchall()
+    elif not ids:
+        return []
+    else:
+        marks = ",".join("?" * len(ids))
+        rows = conn.execute(
+            f"SELECT * FROM products p WHERE p.status = 'published' AND p.id IN ({marks}) {ORDER_BY}", ids
+        ).fetchall()
+    return _public_list(conn, rows)
 
 
 # Sort keys are fixed SQL fragments chosen by name; user input never reaches
@@ -78,8 +104,12 @@ def catalog(
     sort: str,
     limit: int,
     offset: int,
+    popular: bool | None = None,
 ) -> tuple[list[PublicProduct], int]:
     where, params = ["p.status = 'published'"], []
+    if popular is not None:
+        where.append("p.popular = ?")
+        params.append(int(popular))
     if q:
         where.append("p.search_text LIKE ? ESCAPE '\\'")
         params.append(f"%{_escape_like_backslash(search_key(q))}%")
@@ -93,8 +123,7 @@ def catalog(
         f"SELECT * FROM products p WHERE {clause} ORDER BY {order} LIMIT ? OFFSET ?",
         [*params, limit, offset],
     ).fetchall()
-    images = images_by_product(conn, [r["id"] for r in rows])
-    return [to_public(r, images[r["id"]]) for r in rows], total
+    return _public_list(conn, rows), total
 
 
 def get_published(conn: sqlite3.Connection, product_id: str) -> PublicProduct | None:
@@ -121,7 +150,8 @@ def _escape_like(text: str) -> str:
 
 def admin_images(conn: sqlite3.Connection, product_id: str) -> list[sqlite3.Row]:
     return conn.execute(
-        "SELECT id, path, position FROM product_images WHERE product_id = ? ORDER BY position, id",
+        "SELECT id, path, thumb_path, position FROM product_images WHERE product_id = ? "
+        "ORDER BY position, id",
         (product_id,),
     ).fetchall()
 
@@ -131,7 +161,7 @@ def _admin_images_many(conn: sqlite3.Connection, ids: list[str]) -> dict[str, li
     if ids:
         marks = ",".join("?" * len(ids))
         for r in conn.execute(
-            f"SELECT id, product_id, path, position FROM product_images "
+            f"SELECT id, product_id, path, thumb_path, position FROM product_images "
             f"WHERE product_id IN ({marks}) ORDER BY position, id",
             ids,
         ):
@@ -173,7 +203,11 @@ def duplicate_members(conn: sqlite3.Connection, product_id: str, key: str) -> li
             title=r["title"],
             status=r["status"],
             is_main=r["id"] == key,
-            image_url=image_url(images[r["id"]][0]["path"]) if images[r["id"]] else None,
+            image_url=(
+                image_url(images[r["id"]][0]["thumb_path"] or images[r["id"]][0]["path"])
+                if images[r["id"]]
+                else None
+            ),
             image_count=len(images[r["id"]]),
         )
         for r in rows
@@ -205,7 +239,15 @@ def to_admin(
         source_message_id=row["source_message_id"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
-        images=[AdminImage(id=i["id"], url=image_url(i["path"]), position=i["position"]) for i in images],
+        images=[
+            AdminImage(
+                id=i["id"],
+                url=image_url(i["path"]),
+                thumb_url=image_url(i["thumb_path"]) if i["thumb_path"] else None,
+                position=i["position"],
+            )
+            for i in images
+        ],
         duplicate_group=group,
         duplicates=duplicates or [],
     )
@@ -390,8 +432,7 @@ def list_favorites(conn: sqlite3.Connection, user_id: int) -> list[PublicProduct
         "ORDER BY f.created_at DESC, f.rowid DESC",
         (user_id,),
     ).fetchall()
-    images = images_by_product(conn, [r["id"] for r in rows])
-    return [to_public(r, images[r["id"]]) for r in rows]
+    return _public_list(conn, rows)
 
 
 def add_favorite(conn: sqlite3.Connection, user_id: int, product_id: str) -> bool:

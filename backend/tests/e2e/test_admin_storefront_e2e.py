@@ -148,9 +148,10 @@ def test_admin_edit_shows_on_storefront_after_reload(server):
         assert patch.value.status == 200, patch.value.text()
 
         # 3. storefront after reload
-        with shop.expect_response(lambda r: r.url.endswith("/api/products")) as api:
+        # The catalog pages through GET /api/catalog (the full list is never loaded).
+        with shop.expect_response(lambda r: "/api/catalog?" in r.url) as api:
             shop.reload()
-        api_price = next(p["price"] for p in api.value.json() if p["id"] == "tshirt-01")
+        api_price = next(p["price"] for p in api.value.json()["items"] if p["id"] == "tshirt-01")
         raw = card_text(shop, "модель 1")
         normalized = " ".join(raw.split())
         new_card = card_text(shop, DRAFT_TITLE)

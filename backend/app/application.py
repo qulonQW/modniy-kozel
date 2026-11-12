@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import notify, routes_admin, routes_public, routes_user
@@ -17,6 +18,9 @@ from .config import REPO_DIR, Settings, validate_settings
 from .db import connect, init_db
 from .ratelimit import build_limiters
 
+
+IMMUTABLE_IMAGE_PREFIXES = ("/uploads/thumbs/", "/uploads/products/")
+DEMO_IMAGE_PREFIXES = ("/public/images/", "/images/products/")
 
 STOREFRONT_FILES = frozenset(
     {
@@ -88,10 +92,20 @@ def create_app(settings: Settings) -> FastAPI:
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
-        if request.url.path.startswith("/admin"):
+        path = request.url.path
+        if path.startswith("/admin"):
             response.headers["Content-Security-Policy"] = ADMIN_CSP
             response.headers["Cache-Control"] = "no-cache"
+        elif response.status_code == 200 and path.startswith(IMMUTABLE_IMAGE_PREFIXES):
+            # Content-addressed thumbnails and random/hash-named uploads are
+            # never overwritten under the same name.
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif response.status_code == 200 and path.startswith(DEMO_IMAGE_PREFIXES):
+            response.headers["Cache-Control"] = "public, max-age=86400"
         return response
+
+    # JSON lists and the storefront's HTML/JS/CSS; images are already compressed.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     app.state.limiters = build_limiters()
     app.include_router(routes_public.router)

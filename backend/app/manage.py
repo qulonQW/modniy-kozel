@@ -3,6 +3,7 @@
     python -m app.manage init-db
     python -m app.manage import-json --public products.public.json --costs import/private/costs.json
     python -m app.manage seed-demo
+    python -m app.manage thumbnails      # WebP card thumbnails for existing images (idempotent)
 
 Relative --public/--costs paths are resolved against the current directory.
 """
@@ -16,6 +17,7 @@ from pathlib import Path
 from .config import BACKEND_DIR, load_settings
 from .db import connect, init_db
 from .importer import ImportReport, import_files
+from .thumbs import backfill
 
 DEMO_FILE = BACKEND_DIR / "seed" / "demo_products.json"
 
@@ -30,6 +32,18 @@ def _print_report(report: ImportReport) -> None:
         print(f"  ! {line}", file=sys.stderr)
 
 
+def _run_thumbnails(conn, uploads_dir: Path, always_report: bool = False) -> None:
+    def progress(done: int, total: int) -> None:
+        print(f"  thumbnails: {done}/{total}", flush=True)
+
+    stats = backfill(conn, uploads_dir, progress)
+    backup = stats.pop("backup", "")
+    if always_report or stats["created"] or stats["failed"]:
+        print("thumbnails: " + " ".join(f"{k}={v}" for k, v in stats.items()))
+    if backup:
+        print(f"  database backup before the backfill: {backup}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.manage")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -41,6 +55,11 @@ def main(argv: list[str] | None = None) -> int:
     imp.add_argument("--costs", type=Path, default=None, help="costs.json (optional)")
 
     sub.add_parser("seed-demo", help="insert the 7 demo products as published (missing ones only)")
+
+    sub.add_parser(
+        "thumbnails",
+        help="create missing WebP thumbnails for product images (originals untouched; idempotent)",
+    )
 
     args = parser.parse_args(argv)
     settings = load_settings()
@@ -54,8 +73,12 @@ def main(argv: list[str] | None = None) -> int:
                 if path is not None and not path.is_file():
                     parser.error(f"file not found: {path}")
             _print_report(import_files(conn, args.public, args.costs, mode="import"))
+            _run_thumbnails(conn, settings.uploads_dir)  # thumbnails for newly imported photos
         elif args.command == "seed-demo":
             _print_report(import_files(conn, DEMO_FILE, None, mode="seed"))
+            _run_thumbnails(conn, settings.uploads_dir)
+        elif args.command == "thumbnails":
+            _run_thumbnails(conn, settings.uploads_dir, always_report=True)
     finally:
         conn.close()
     return 0

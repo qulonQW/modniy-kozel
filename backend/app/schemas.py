@@ -113,8 +113,9 @@ class PublicProduct(BaseModel):
     sizes: list[str]
     inStock: bool
     popular: bool
-    imageUrl: str | None
-    images: list[str]
+    imageUrl: str | None  # full-size cover
+    thumbUrl: str | None  # ~400 px WebP for cards (falls back to imageUrl)
+    images: list[str]  # all full-size photos; empty in list responses
 
 
 # --- admin models (may contain price_supplier and internal fields) ---------
@@ -188,6 +189,7 @@ class CatalogPage(BaseModel):
 class AdminImage(BaseModel):
     id: int
     url: str
+    thumb_url: str | None = None
     position: int
 
 

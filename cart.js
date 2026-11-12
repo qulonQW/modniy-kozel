@@ -24,6 +24,7 @@ function writeList(key, list) {
 const MKCart = {
   KEY: 'mk_cart',
   MAX_QTY: 10,
+  MAX_LINES: 50, // products.js looks up at most 50 cart products
 
   read() {
     return readList(this.KEY).filter(
@@ -31,16 +32,20 @@ const MKCart = {
     );
   },
 
+  // Returns false when the cart is full (MAX_LINES different lines).
   add(id, size, price) {
     const lines = this.read();
     const line = lines.find((l) => l.id === id && l.size === size);
     if (line) {
       line.qty = Math.min(line.qty + 1, this.MAX_QTY);
       line.price = price;
+    } else if (lines.length >= this.MAX_LINES) {
+      return false;
     } else {
       lines.push({ id, size, qty: 1, price });
     }
     writeList(this.KEY, lines);
+    return true;
   },
 
   remove(id, size) {

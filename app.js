@@ -106,7 +106,8 @@ const MK = (() => {
       el(
         'div',
         { class: 'card-media' },
-        el('img', { src: p.imageUrl, alt: p.name, loading: 'lazy' }),
+        // ~400 px WebP thumbnail; width/height reserve the 3:4 box (no layout jump).
+        el('img', { src: p.thumbUrl || p.imageUrl, alt: p.name, loading: 'lazy', decoding: 'async', width: 400, height: 533 }),
         el('span', { class: 'tag' }, p.category)
       ),
       el(

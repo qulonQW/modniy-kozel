@@ -4,6 +4,8 @@ pydantic==2.14.3
 python-multipart==0.0.33
 # Bot API calls (new-order notifications); also used by fastapi.testclient
 httpx==0.28.1
+# WebP thumbnails for product cards (app/thumbs.py)
+Pillow==11.3.0
 
 # tests only
 pytest==9.2.0

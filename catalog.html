@@ -44,7 +44,7 @@
   <script src="./app.js"></script>
   <script>
     // The catalog asks the server for one page at a time (GET /api/catalog);
-    // PRODUCTS_READY is still loaded by app.js for the cart badge.
+    // PRODUCTS_READY (products.js) only loads the cart's products for the badge.
     const PAGE_SIZE = 20;
     const SORTS = ['popular', 'price_desc', 'price_asc', 'newest'];
     const grid = document.getElementById('grid');

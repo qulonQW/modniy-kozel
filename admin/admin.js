@@ -191,7 +191,7 @@
     });
     const cover = p.images[0];
     const thumb = cover
-      ? h('img', { className: 'thumb', src: cover.url, alt: '', loading: 'lazy' })
+      ? h('img', { className: 'thumb', src: cover.thumb_url || cover.url, alt: '', loading: 'lazy' })
       : h('div', { className: 'thumb' });
     const meta = h('div', { className: 'row-meta' },
       h('span', { className: p.price_retail > 0 ? '' : 'price-zero' }, formatPrice(p.price_retail)),

@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS product_images (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     product_id TEXT NOT NULL REFERENCES products (id) ON DELETE CASCADE,
     path       TEXT NOT NULL,
-    position   INTEGER NOT NULL
+    position   INTEGER NOT NULL,
+    thumb_path TEXT  -- WebP card thumbnail (app/thumbs.py); NULL -> use path
 );
 
 CREATE INDEX IF NOT EXISTS idx_product_images_product
@@ -169,6 +170,9 @@ ADDED_COLUMNS = {
             "TEXT CHECK (duplicate_group IS NULL OR length(duplicate_group) BETWEEN 1 AND 64)",
         ),
         ("search_text", "TEXT NOT NULL DEFAULT ''"),
+    ],
+    "product_images": [
+        ("thumb_path", "TEXT"),
     ],
 }
 

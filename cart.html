@@ -85,7 +85,7 @@
         const note = lineNote(line);
         return MK.el('article', { class: line.status === 'ok' ? 'cart-item' : 'cart-item is-blocked' },
           MK.el('a', { class: 'cart-thumb', href: `./product.html?id=${encodeURIComponent(p.id)}` },
-            MK.el('img', { src: p.imageUrl, alt: p.name, loading: 'lazy', width: 72, height: 96 })),
+            MK.el('img', { src: p.thumbUrl || p.imageUrl, alt: p.name, loading: 'lazy', decoding: 'async', width: 72, height: 96 })),
           MK.el('div', { class: 'cart-info' },
             MK.el('h2', { class: 'cart-name' }, p.name),
             MK.el('p', { class: 'cart-size' }, `${size ? `Розмір ${size}` : ''}${size && qty > 1 ? ' · ' : ''}${qty > 1 ? `${qty} шт.` : ''}`),

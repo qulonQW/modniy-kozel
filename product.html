@@ -14,7 +14,7 @@
 <body data-back="./catalog.html">
   <div class="page" id="product" hidden>
     <div class="product-image">
-      <img id="image" alt="" loading="lazy">
+      <img id="image" alt="" fetchpriority="high" decoding="async">
       <div class="product-bar">
         <a class="icon-btn back-link" href="./catalog.html" data-back-link aria-label="Назад">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
@@ -64,18 +64,30 @@
   <script src="./app.js"></script>
   <script>
     const id = new URLSearchParams(location.search).get('id');
-    PRODUCTS_READY.then((loaded) => {
-      if (!loaded) {
-        MK.showLoadError(document.getElementById('not-found'));
+
+    // One request for this product (full-size photos); the cart badge has its own.
+    (async () => {
+      if (!id || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) {
+        document.getElementById('not-found').hidden = false;
         return;
       }
-      const product = PRODUCTS.find((p) => p.id === id);
-      if (!product) {
-        document.getElementById('not-found').hidden = false;
-      } else {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/products/${encodeURIComponent(id)}`, {
+          headers: { Accept: 'application/json' },
+        });
+        if (res.status === 404) {
+          document.getElementById('not-found').hidden = false;
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const product = normalizeProduct(await res.json());
+        addProducts([product]); // so the cart badge counts it once added
         renderProduct(product);
+      } catch (err) {
+        console.warn('Product could not be loaded:', err.name);
+        MK.showLoadError(document.getElementById('not-found'));
       }
-    });
+    })();
 
     function renderProduct(p) {
       document.title = `${p.name} — Modniy Kozel`;
@@ -141,7 +153,10 @@
           MK.haptic('error');
           return;
         }
-        MKCart.add(p.id, selected, p.price);
+        if (!MKCart.add(p.id, selected, p.price)) {
+          MK.notify('У кошику вже 50 різних товарів. Оформіть замовлення або видаліть щось.');
+          return;
+        }
         MK.refreshCartBadges();
         MK.haptic('success');
         setAdded(true);

@@ -15,7 +15,7 @@ ADMIN_ONLY = {
 }
 PUBLIC_FIELDS = {
     "id", "name", "description", "category", "price", "sizes",
-    "inStock", "popular", "imageUrl", "images",
+    "inStock", "popular", "imageUrl", "thumbUrl", "images",
 }
 
 
@@ -66,6 +66,7 @@ def test_product_shape_matches_storefront(client, catalog):
         "inStock": True,
         "popular": True,
         "imageUrl": "/uploads/products/a.jpg",
+        "thumbUrl": "/uploads/products/a.jpg",  # no thumbnail yet -> the original
         "images": ["/uploads/products/a.jpg", "/uploads/products/b.webp"],
     }
     assert client.get("/api/products/pub-2").json()["imageUrl"] is None

@@ -16,6 +16,7 @@ from .auth import require_admin
 from .deps import get_db, get_settings
 from .config import Settings
 from .images import MAX_IMAGE_BYTES, delete_stored_image, detect_image_type, save_image
+from .thumbs import ThumbnailError, delete_thumb_if_unused, ensure_thumbnail
 from .ratelimit import limit
 from .schemas import (
     MAX_IMAGES,
@@ -118,11 +119,12 @@ def delete_product(
     product_id: ProductIdPath, conn: Db, settings: Annotated[Settings, Depends(get_settings)]
 ):
     with conn:
-        paths = [r["path"] for r in repo.admin_images(conn, product_id)]
+        rows = repo.admin_images(conn, product_id)
         if conn.execute("DELETE FROM products WHERE id = ?", (product_id,)).rowcount == 0:
             raise _not_found()
-    for path in paths:  # files go only after the rows are gone
-        delete_stored_image(settings.uploads_dir, path)
+    for row in rows:  # files go only after the rows are gone
+        delete_stored_image(settings.uploads_dir, row["path"])
+        delete_thumb_if_unused(conn, settings.uploads_dir, row["thumb_path"])
     return Response(status_code=204)
 
 
@@ -157,7 +159,8 @@ def delete_image(
 ):
     with conn:
         row = conn.execute(
-            "SELECT path FROM product_images WHERE id = ? AND product_id = ?", (image_id, product_id)
+            "SELECT path, thumb_path FROM product_images WHERE id = ? AND product_id = ?",
+            (image_id, product_id),
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="Image not found")
@@ -165,6 +168,7 @@ def delete_image(
         repo.renumber_images(conn, product_id, [r["id"] for r in repo.admin_images(conn, product_id)])
         repo.touch(conn, product_id)
     delete_stored_image(settings.uploads_dir, row["path"])
+    delete_thumb_if_unused(conn, settings.uploads_dir, row["thumb_path"])
     return _get_or_404(conn, product_id)
 
 
@@ -212,6 +216,12 @@ async def upload_image(
 
     def store() -> AdminProduct:
         check_capacity()
+        # Decoding for the thumbnail doubles as a check that the file really
+        # is a readable image (magic bytes alone can be faked).
+        try:
+            thumb = ensure_thumbnail(settings.uploads_dir, data)
+        except ThumbnailError:
+            raise HTTPException(status_code=415, detail="The image could not be read") from None
         path = save_image(settings.uploads_dir, data, ext)
         try:
             with conn:
@@ -220,8 +230,9 @@ async def upload_image(
                     (product_id,),
                 ).fetchone()[0]
                 conn.execute(
-                    "INSERT INTO product_images (product_id, path, position) VALUES (?, ?, ?)",
-                    (product_id, path, position),
+                    "INSERT INTO product_images (product_id, path, position, thumb_path) "
+                    "VALUES (?, ?, ?, ?)",
+                    (product_id, path, position, thumb),
                 )
                 repo.touch(conn, product_id)
         except Exception:

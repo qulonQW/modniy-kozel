@@ -29,10 +29,15 @@ def test_admin_and_api_are_not_shadowed(client):
 
 def test_storefront_uses_api_not_hardcoded_products():
     js = (REPO_DIR / "products.js").read_text(encoding="utf-8")
-    assert "/api/products" in js and "const PRODUCTS = [];" in js
+    assert "/api/products?" in js and "ids:" in js and "const PRODUCTS = [];" in js
     assert "sneaker-01" not in js
-    for page in ("index.html", "product.html", "cart.html", "checkout.html"):
+    # cart pages wait for the cart's products; the others fetch their own data
+    for page in ("cart.html", "checkout.html"):
         assert "PRODUCTS_READY.then" in (REPO_DIR / page).read_text(encoding="utf-8"), page
+    home = (REPO_DIR / "index.html").read_text(encoding="utf-8")
+    assert "/api/catalog?" in home and "popular" in home and "HOME_LIMIT" in home
+    product = (REPO_DIR / "product.html").read_text(encoding="utf-8")
+    assert "/api/products/${encodeURIComponent(id)}" in product
     # the catalog pages through the server-side search instead of the full list
     catalog = (REPO_DIR / "catalog.html").read_text(encoding="utf-8")
     assert "/api/catalog?" in catalog and "AbortController" in catalog
