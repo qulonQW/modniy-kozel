@@ -256,6 +256,49 @@ img {
   color: var(--bg);
 }
 
+/* Catalog search and sort */
+
+.catalog-tools {
+  display: flex;
+  gap: 8px;
+  padding: 14px var(--gutter) 0;
+}
+
+.catalog-tools .input {
+  color: var(--text);
+  font-family: inherit;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-input::placeholder {
+  color: var(--muted);
+}
+
+.sort-select {
+  flex: none;
+  width: 44%;
+  max-width: 180px;
+  padding: 0 8px;
+}
+
+.grid-loading {
+  opacity: 0.5;
+  transition: opacity 150ms ease;
+}
+
+.btn-secondary {
+  margin-top: 16px;
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
 /* Product grid */
 
 .grid {

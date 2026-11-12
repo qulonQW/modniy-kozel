@@ -18,10 +18,22 @@
       <a class="icon-btn icon-btn-end" href="./cart.html" data-cart-link aria-label="Кошик"></a>
     </header>
 
+    <form class="catalog-tools" id="tools" role="search">
+      <input class="input search-input" id="search" type="search" name="q" maxlength="50"
+             placeholder="Пошук за назвою" aria-label="Пошук за назвою" autocomplete="off" enterkeyhint="search">
+      <select class="input sort-select" id="sort" aria-label="Сортування">
+        <option value="popular">Популярні</option>
+        <option value="price_desc">Спочатку дорогі</option>
+        <option value="price_asc">Спочатку дешеві</option>
+        <option value="newest">Новинки</option>
+      </select>
+    </form>
+
     <div class="filter filter-sticky" id="filter"></div>
 
     <main class="section grid-page">
-      <div id="grid"></div>
+      <div id="grid" aria-live="polite"></div>
+      <button class="btn btn-secondary" type="button" id="more" hidden>Показати ще</button>
     </main>
   </div>
 
@@ -31,20 +43,146 @@
   <script src="./cart.js"></script>
   <script src="./app.js"></script>
   <script>
+    // The catalog asks the server for one page at a time (GET /api/catalog);
+    // PRODUCTS_READY is still loaded by app.js for the cart badge.
+    const PAGE_SIZE = 20;
+    const SORTS = ['popular', 'price_desc', 'price_asc', 'newest'];
     const grid = document.getElementById('grid');
+    const more = document.getElementById('more');
+    const search = document.getElementById('search');
+    const sort = document.getElementById('sort');
 
-    function show(category) {
-      MK.renderGrid(grid, category ? PRODUCTS.filter((p) => p.category === category) : PRODUCTS);
+    const state = { q: '', sort: 'popular', category: null, shown: 0, total: 0 };
+    let controller = null; // the request in flight; a newer request aborts it
+
+    const normalizeQuery = (value) => value.trim().replace(/\s+/g, ' ').slice(0, 50);
+
+    function readUrl() {
+      const params = new URLSearchParams(location.search);
+      state.q = normalizeQuery(params.get('q') || '');
+      state.sort = SORTS.includes(params.get('sort')) ? params.get('sort') : 'popular';
+      state.category = CATEGORIES.includes(params.get('category')) ? params.get('category') : null;
     }
 
-    PRODUCTS_READY.then((loaded) => {
-      if (!loaded) {
-        MK.showLoadError(grid);
+    // Keeps the choice in the address, so "back" from a product restores it.
+    function writeUrl() {
+      const params = new URLSearchParams();
+      if (state.q) params.set('q', state.q);
+      if (state.sort !== 'popular') params.set('sort', state.sort);
+      if (state.category) params.set('category', state.category);
+      const query = params.toString();
+      history.replaceState(null, '', query ? `?${query}` : location.pathname);
+    }
+
+    function setLoading(append) {
+      if (append) {
+        more.disabled = true;
+        more.textContent = 'Завантаження…';
+      } else if (grid.childElementCount && grid.classList.contains('grid')) {
+        grid.classList.add('grid-loading'); // keep old results visible: no flicker
+      } else {
+        grid.className = '';
+        grid.replaceChildren(MK.el('p', { class: 'empty-note' }, 'Завантаження…'));
+        more.hidden = true;
+      }
+      grid.setAttribute('aria-busy', 'true');
+    }
+
+    function render(products, total, append) {
+      state.total = total;
+      state.shown = (append ? state.shown : 0) + products.length;
+      grid.classList.remove('grid-loading', 'empty');
+      grid.removeAttribute('aria-busy');
+      if (append) {
+        grid.append(...products.map(MK.productCard));
+      } else if (products.length) {
+        grid.className = 'grid';
+        grid.replaceChildren(...products.map(MK.productCard));
+      } else {
+        grid.className = '';
+        grid.replaceChildren(MK.el('p', { class: 'empty-note' }, 'Нічого не знайдено'));
+      }
+      more.disabled = false;
+      more.textContent = 'Показати ще';
+      more.hidden = state.shown >= state.total;
+    }
+
+    function renderError(append) {
+      grid.classList.remove('grid-loading');
+      grid.removeAttribute('aria-busy');
+      if (append) {
+        more.disabled = false;
+        more.textContent = 'Не вдалося завантажити. Спробувати ще раз';
         return;
       }
-      MK.mountFilter(document.getElementById('filter'), show);
-      show(null);
+      more.hidden = true;
+      MK.showLoadError(grid);
+    }
+
+    async function load(append = false) {
+      if (controller) controller.abort();
+      const current = new AbortController();
+      controller = current;
+      const timer = setTimeout(() => current.abort(new DOMException('timeout', 'TimeoutError')), 10000);
+      if (!append) writeUrl();
+      setLoading(append);
+
+      const params = new URLSearchParams({ sort: state.sort, limit: PAGE_SIZE, offset: append ? state.shown : 0 });
+      if (state.q) params.set('q', state.q);
+      if (state.category) params.set('category', state.category);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/catalog?${params}`, {
+          signal: current.signal,
+          headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (controller !== current) return; // a newer request owns the page now
+        if (!data || !Array.isArray(data.items)) throw new Error('unexpected response');
+        render(data.items.map(normalizeProduct), Number(data.total) || 0, append);
+      } catch (err) {
+        if (controller !== current) return; // aborted by a newer request: ignore
+        console.warn('Catalog could not be loaded:', err.name);
+        renderError(append);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    let debounceTimer = null;
+    function onQueryChange(immediate) {
+      clearTimeout(debounceTimer);
+      const run = () => {
+        const q = normalizeQuery(search.value);
+        if (q === state.q) return;
+        state.q = q;
+        load();
+      };
+      if (immediate) run();
+      else debounceTimer = setTimeout(run, 300);
+    }
+
+    readUrl();
+    search.value = state.q;
+    sort.value = state.sort;
+
+    search.addEventListener('input', () => onQueryChange(false));
+    document.getElementById('tools').addEventListener('submit', (event) => {
+      event.preventDefault();
+      onQueryChange(true);
+      search.blur(); // closes the on-screen keyboard
     });
+    sort.addEventListener('change', () => {
+      state.sort = SORTS.includes(sort.value) ? sort.value : 'popular';
+      load();
+    });
+    more.addEventListener('click', () => load(true));
+    MK.mountFilter(document.getElementById('filter'), (category) => {
+      state.category = category;
+      load();
+    }, state.category);
+
+    load();
   </script>
 </body>
 </html>

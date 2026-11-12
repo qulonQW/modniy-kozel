@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from . import repo
+from .db import search_key
 from .deps import get_db
-from .schemas import PRODUCT_ID_RE, PublicProduct
+from .ratelimit import limit
+from .schemas import PRODUCT_ID_RE, CatalogPage, Category, PublicProduct
 
 router = APIRouter(prefix="/api")
 
@@ -25,6 +28,28 @@ def _no_cache(response: Response) -> None:
 def list_products(response: Response, conn: sqlite3.Connection = Depends(get_db)):
     _no_cache(response)
     return repo.list_published(conn)
+
+
+Q_MAX = 50
+
+
+@router.get("/catalog", response_model=CatalogPage, dependencies=[Depends(limit("catalog"))])
+def catalog(
+    response: Response,
+    conn: sqlite3.Connection = Depends(get_db),
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    category: Category | None = None,
+    sort: Literal["popular", "price_asc", "price_desc", "newest"] = "popular",
+    limit_: Annotated[int, Query(alias="limit", ge=1, le=50)] = 20,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+):
+    """Published products: search by name, category filter, sort, pages."""
+    _no_cache(response)
+    query = search_key(q or "")
+    if len(query) > Q_MAX:
+        raise HTTPException(status_code=422, detail=f"q: at most {Q_MAX} characters")
+    items, total = repo.catalog(conn, query or None, category, sort, limit_, offset)
+    return CatalogPage(items=items, total=total)
 
 
 @router.get("/products/{product_id}", response_model=PublicProduct)

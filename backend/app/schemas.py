@@ -172,6 +172,13 @@ class ImageOrder(StrictModel):
     image_ids: list[int] = Field(max_length=MAX_IMAGES)
 
 
+class CatalogPage(BaseModel):
+    """GET /api/catalog: one page of published products plus the total match count."""
+
+    items: list[PublicProduct]
+    total: int
+
+
 class AdminImage(BaseModel):
     id: int
     url: str

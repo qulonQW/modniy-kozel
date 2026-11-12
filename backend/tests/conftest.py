@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.application import create_app
 from app.config import Settings
-from app.db import connect, init_db
+from app.db import connect, init_db, search_key
 
 ORIGIN = "https://shop.example"
 TEST_BOT_TOKEN = "123456789:AAFakeTokenForTestsOnly_abcdefghijklmn"
@@ -67,6 +67,7 @@ def insert_product(conn, pid: str, status: str = "published", **fields) -> None:
         "updated_at": "2026-01-01T00:00:00+00:00",
         **fields,
     }
+    row.setdefault("search_text", search_key(row["title"]))
     cols = ", ".join(["id", "status", *row])
     marks = ", ".join("?" * (len(row) + 2))
     conn.execute(f"INSERT INTO products ({cols}) VALUES ({marks})", (pid, status, *row.values()))

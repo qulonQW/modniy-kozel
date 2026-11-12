@@ -106,11 +106,11 @@ const MK = (() => {
 
   // Tapping the active pill clears it, which is how a shopper gets back to
   // the unfiltered list. Calls onChange with the category, or null when cleared.
-  function mountFilter(container, onChange) {
-    let active = null;
+  function mountFilter(container, onChange, initial = null) {
+    let active = CATEGORIES.includes(initial) ? initial : null;
     container.replaceChildren(
       ...CATEGORIES.map((c) =>
-        el('button', { class: 'pill', type: 'button', 'aria-pressed': 'false', 'data-category': c }, c)
+        el('button', { class: 'pill', type: 'button', 'aria-pressed': String(c === active), 'data-category': c }, c)
       )
     );
 
@@ -236,6 +236,7 @@ const MK = (() => {
     el,
     formatPrice,
     stockLabel,
+    productCard,
     renderGrid,
     mountFilter,
     refreshCartBadges,

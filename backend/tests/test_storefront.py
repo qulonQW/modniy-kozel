@@ -31,8 +31,11 @@ def test_storefront_uses_api_not_hardcoded_products():
     js = (REPO_DIR / "products.js").read_text(encoding="utf-8")
     assert "/api/products" in js and "const PRODUCTS = [];" in js
     assert "sneaker-01" not in js
-    for page in ("index.html", "catalog.html", "product.html", "cart.html", "checkout.html"):
+    for page in ("index.html", "product.html", "cart.html", "checkout.html"):
         assert "PRODUCTS_READY.then" in (REPO_DIR / page).read_text(encoding="utf-8"), page
+    # the catalog pages through the server-side search instead of the full list
+    catalog = (REPO_DIR / "catalog.html").read_text(encoding="utf-8")
+    assert "/api/catalog?" in catalog and "AbortController" in catalog
 
 
 def test_storefront_never_renders_html_strings():

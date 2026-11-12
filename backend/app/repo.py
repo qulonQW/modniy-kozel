@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
-from .db import utc_now
+from .db import search_key, utc_now
 from .schemas import AdminImage, AdminProduct, DuplicateMember, ProductCreate, PublicProduct
 
 # Newest first; rows created in the same second keep insertion order.
@@ -54,6 +54,47 @@ def list_published(conn: sqlite3.Connection) -> list[PublicProduct]:
     rows = conn.execute(f"SELECT * FROM products p WHERE p.status = 'published' {ORDER_BY}").fetchall()
     images = images_by_product(conn, [r["id"] for r in rows])
     return [to_public(r, images[r["id"]]) for r in rows]
+
+
+# Sort keys are fixed SQL fragments chosen by name; user input never reaches
+# the ORDER BY text. In-stock items always come first; p.id is unique, so the
+# order is total and offset pagination never skips or repeats a row.
+CATALOG_SORTS = {
+    "popular": "p.popular DESC, p.created_at DESC",
+    "newest": "p.created_at DESC",
+    "price_asc": "p.price_retail ASC",
+    "price_desc": "p.price_retail DESC",
+}
+
+
+def _escape_like_backslash(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def catalog(
+    conn: sqlite3.Connection,
+    q: str | None,
+    category: str | None,
+    sort: str,
+    limit: int,
+    offset: int,
+) -> tuple[list[PublicProduct], int]:
+    where, params = ["p.status = 'published'"], []
+    if q:
+        where.append("p.search_text LIKE ? ESCAPE '\\'")
+        params.append(f"%{_escape_like_backslash(search_key(q))}%")
+    if category:
+        where.append("p.category = ?")
+        params.append(category)
+    clause = " AND ".join(where)
+    order = f"p.in_stock DESC, {CATALOG_SORTS[sort]}, p.id ASC"
+    total = conn.execute(f"SELECT COUNT(*) FROM products p WHERE {clause}", params).fetchone()[0]
+    rows = conn.execute(
+        f"SELECT * FROM products p WHERE {clause} ORDER BY {order} LIMIT ? OFFSET ?",
+        [*params, limit, offset],
+    ).fetchall()
+    images = images_by_product(conn, [r["id"] for r in rows])
+    return [to_public(r, images[r["id"]]) for r in rows], total
 
 
 def get_published(conn: sqlite3.Connection, product_id: str) -> PublicProduct | None:
@@ -238,8 +279,9 @@ def admin_create(conn: sqlite3.Connection, product_id: str, data: ProductCreate)
     cols = ", ".join(_ADMIN_COLUMNS)
     marks = ", ".join("?" * (len(_ADMIN_COLUMNS) + 4))
     conn.execute(
-        f"INSERT INTO products (id, {cols}, edited_by_admin, created_at, updated_at) VALUES ({marks})",
-        (product_id, *values, 1, now, now),
+        f"INSERT INTO products (id, {cols}, search_text, edited_by_admin, created_at, updated_at) "
+        f"VALUES ({marks}, ?)",
+        (product_id, *values, search_key(data.title), 1, now, now),
     )
 
 
@@ -287,6 +329,8 @@ def admin_update(conn: sqlite3.Connection, product_id: str, changes: dict) -> bo
         raise PublishBlocked
 
     updates = {c: _db_value(c, v) for c, v in changes.items()}
+    if "title" in changes:
+        updates["search_text"] = search_key(changes["title"])
     if clears_review:
         updates.update(needs_review=0, review_reasons="")
     if confirm_review:
