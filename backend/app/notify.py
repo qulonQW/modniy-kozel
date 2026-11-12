@@ -70,15 +70,37 @@ def _money(value: int) -> str:
     return f"{value:,}".replace(",", " ") + " грн"
 
 
+# Telegram rejects messages over 4096 characters (after entity parsing; we
+# count the raw HTML, which is longer, so this is on the safe side).
+MAX_MESSAGE_CHARS = 4096
+# Progressively shorter limits for user text: (title, comment, other fields).
+_SHORTENING = ((None, None, None), (60, 300, 80), (30, 120, 40), (16, 60, 24))
+
+
+def _cut(value, limit: int | None) -> str:
+    text = str(value)
+    return text if limit is None or len(text) <= limit else text[: limit - 1] + "…"
+
+
 def order_message(conn: sqlite3.Connection, order_id: int) -> str:
     """HTML text for Telegram. Every user-supplied value goes through
-    html.escape; only our own tags are left unescaped."""
+    html.escape; only our own tags are left unescaped. Raw values are
+    shortened BEFORE escaping when the message would be too long, so the
+    markup is never cut in the middle."""
     o = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
     items = conn.execute(
         "SELECT title_snapshot, size, qty, price_snapshot FROM order_items WHERE order_id = ? ORDER BY id",
         (order_id,),
     ).fetchall()
-    e = lambda value: html.escape(str(value), quote=True)  # noqa: E731
+    for limits in _SHORTENING:
+        text = _render(o, items, *limits)
+        if len(text) <= MAX_MESSAGE_CHARS:
+            return text
+    return text[:MAX_MESSAGE_CHARS]  # unreachable with the schema's length limits
+
+
+def _render(o, items, title_limit, comment_limit, field_limit) -> str:
+    e = lambda value, limit=field_limit: html.escape(_cut(value, limit), quote=True)  # noqa: E731
 
     buyer = f'<a href="tg://user?id={int(o["user_telegram_id"])}">{e(o["first_name"] or "Покупець")}</a>'
     if o["username"]:
@@ -93,12 +115,13 @@ def order_message(conn: sqlite3.Connection, order_id: int) -> str:
         f"<b>Відділення / поштомат:</b> {e(o['delivery_point'])}",
     ]
     if o["comment"]:
-        lines.append(f"<b>Коментар:</b> {e(o['comment'])}")
+        lines.append(f"<b>Коментар:</b> {e(o['comment'], comment_limit)}")
     lines += ["", "<b>Товари:</b>"]
     for it in items:
         size = f", розмір {e(it['size'])}" if it["size"] else ""
         lines.append(
-            f"• {e(it['title_snapshot'])}{size} × {int(it['qty'])} — {_money(it['qty'] * it['price_snapshot'])}"
+            f"• {e(it['title_snapshot'], title_limit)}{size} × {int(it['qty'])} — "
+            f"{_money(it['qty'] * it['price_snapshot'])}"
         )
     lines += ["", f"<b>Разом: {_money(o['total'])}</b>"]
     return "\n".join(lines)

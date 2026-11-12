@@ -357,3 +357,17 @@ def test_admin_message_escapes_all_user_text(client, shop, notifier):
 def test_bot_notifier_never_exposes_the_token():
     bot = notify.BotNotifier("123456789:AAFakeTokenForTestsOnly_abcdefghijklmn")
     assert "AAFake" not in repr(bot) and "AAFake" not in str(bot)
+
+
+def test_longest_possible_order_still_fits_one_telegram_message(client, db, notifier):
+    for i in range(20):
+        insert_product(db, f"long-{i}", title=("<&" * 60)[:120], sizes='["42"]', price_retail=999)
+    db.commit()
+    items = [{"product_id": f"long-{i}", "size": "42", "qty": 10} for i in range(20)]
+    res = post(client, order_body(*items, customer_name="&" * 100, city="<" * 100,
+                                  delivery_point=">" * 200, comment="&" * 500))
+    assert res.status_code == 201
+    text = notifier.sent[0][1]
+    assert len(text) <= notify.MAX_MESSAGE_CHARS
+    assert text.count("•") == 20 and "Разом: 199 800 грн" in text  # every line and the total kept
+    assert "<&" not in text  # still escaped
