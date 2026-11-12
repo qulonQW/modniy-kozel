@@ -168,6 +168,17 @@ img {
   margin-right: -9px;
 }
 
+/* Admins only (app.js mountAdminLink); sits just left of the cart icon. */
+.admin-link {
+  margin-left: auto;
+  margin-right: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+}
+
 .back-link {
   margin-left: -9px;
 }

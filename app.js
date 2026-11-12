@@ -221,7 +221,29 @@ const MK = (() => {
     container.hidden = false;
   }
 
+  // "Адмінка" link in the page header, left of the cart icon, only for users
+  // the backend recognises as admins (same initData check as /api/admin).
+  // Any failure just leaves the link out; shoppers never see it.
+  async function mountAdminLink() {
+    const header = document.querySelector('.header');
+    if (!header) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/me`, {
+        headers: tg && tg.initData ? { 'X-Telegram-Init-Data': tg.initData } : {},
+        cache: 'no-store',
+      });
+      if (!res.ok || !(await res.json()).is_admin) return;
+    } catch {
+      return;
+    }
+    const link = el('a', { class: 'admin-link', href: './admin/' }, 'Адмінка');
+    const cart = header.querySelector('[data-cart-link]');
+    if (cart) cart.before(link);
+    else header.append(link);
+  }
+
   setupTelegram();
+  mountAdminLink();
   setupPhotoFallback();
   renderNav();
   renderCartLinks();

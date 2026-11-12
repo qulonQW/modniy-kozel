@@ -79,6 +79,16 @@ def verify_init_data(init_data: str, bot_token: str, now: float | None = None) -
     return user_id
 
 
+def is_admin(request: Request) -> bool:
+    """Same rules as require_admin, but answers yes/no instead of raising.
+    Used by GET /api/me so the storefront can show the admin link."""
+    try:
+        require_admin(request)
+    except HTTPException:
+        return False
+    return True
+
+
 def require_admin(request: Request) -> int:
     """FastAPI dependency: returns the admin's Telegram user ID.
 

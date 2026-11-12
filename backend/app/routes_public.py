@@ -6,13 +6,14 @@ import re
 import sqlite3
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from . import repo
+from .auth import is_admin
 from .db import search_key
 from .deps import get_db
 from .ratelimit import limit
-from .schemas import PRODUCT_ID_RE, CatalogPage, Category, PublicProduct
+from .schemas import PRODUCT_ID_RE, CatalogPage, Category, Me, PublicProduct
 
 router = APIRouter(prefix="/api")
 
@@ -28,6 +29,15 @@ def _no_cache(response: Response) -> None:
 def list_products(response: Response, conn: sqlite3.Connection = Depends(get_db)):
     _no_cache(response)
     return repo.list_published(conn)
+
+
+@router.get("/me", response_model=Me)
+def me(request: Request, response: Response):
+    """Never 401/403: shoppers without initData or with a non-admin ID just
+    get is_admin=false, so the storefront works the same for them."""
+    # Per-user answer: must not be stored by the WebView or any proxy.
+    response.headers["Cache-Control"] = "no-store"
+    return Me(is_admin=is_admin(request))
 
 
 Q_MAX = 50

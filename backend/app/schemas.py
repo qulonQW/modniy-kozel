@@ -172,6 +172,12 @@ class ImageOrder(StrictModel):
     image_ids: list[int] = Field(max_length=MAX_IMAGES)
 
 
+class Me(BaseModel):
+    """GET /api/me: whether the Telegram user behind initData is an admin."""
+
+    is_admin: bool
+
+
 class CatalogPage(BaseModel):
     """GET /api/catalog: one page of published products plus the total match count."""
 
