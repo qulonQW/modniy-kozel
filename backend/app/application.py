@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import routes_admin, routes_public
+from . import routes_admin, routes_public, routes_user
 from .config import REPO_DIR, Settings, validate_settings
 from .db import connect, init_db
 from .ratelimit import build_limiters
@@ -19,6 +19,7 @@ from .ratelimit import build_limiters
 STOREFRONT_FILES = frozenset(
     {
         "index.html", "catalog.html", "product.html", "cart.html", "checkout.html", "orders.html",
+        "favorites.html",
         "app.js", "cart.js", "products.js", "style.css",
     }
 )
@@ -85,6 +86,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.state.limiters = build_limiters()
     app.include_router(routes_public.router)
     app.include_router(routes_admin.router)
+    app.include_router(routes_user.router)
 
     # Image files only. Never mount the repo root: it contains backend/.env.
     settings.uploads_dir.mkdir(parents=True, exist_ok=True)

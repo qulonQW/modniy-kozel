@@ -17,6 +17,7 @@ LIMITS = {
     "admin": (120, 60.0),  # requests per window (seconds)
     "upload": (20, 60.0),
     "catalog": (240, 60.0),  # public search: typing + "show more"
+    "favorites": (120, 60.0),
 }
 
 

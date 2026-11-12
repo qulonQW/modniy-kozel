@@ -48,7 +48,19 @@ CREATE TABLE IF NOT EXISTS product_images (
 
 CREATE INDEX IF NOT EXISTS idx_product_images_product
     ON product_images (product_id, position);
+
+-- Shopper favorites. user_telegram_id always comes from verified initData.
+CREATE TABLE IF NOT EXISTS favorites (
+    user_telegram_id INTEGER NOT NULL CHECK (user_telegram_id > 0),
+    product_id       TEXT NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+    created_at       TEXT NOT NULL,
+    PRIMARY KEY (user_telegram_id, product_id)
+);
 """
+
+# Tables created after the first release. An existing database that lacks one
+# of them (or an ADDED_COLUMNS column) is backed up before init_db changes it.
+ADDED_TABLES = ("favorites",)
 
 
 _APOSTROPHES = re.compile(r"[’ʼ`´‘]")
@@ -107,7 +119,43 @@ ADDED_COLUMNS = {
 }
 
 
+def _pending_migration(conn: sqlite3.Connection) -> bool:
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if "products" not in tables:
+        return False  # new, empty database: nothing to protect
+    if any(t not in tables for t in ADDED_TABLES):
+        return True
+    for table, columns in ADDED_COLUMNS.items():
+        existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if any(name not in existing for name, _ in columns):
+            return True
+    return False
+
+
+def backup_database(conn: sqlite3.Connection, directory: Path | None = None) -> Path | None:
+    """Consistent copy (SQLite backup API, safe with WAL) next to the database
+    as backup-<UTC timestamp>.sqlite3. Returns None for in-memory databases."""
+    file = conn.execute("PRAGMA database_list").fetchone()[2]
+    if not file:
+        return None
+    directory = directory or Path(file).parent
+    directory.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+    target = directory / f"backup-{stamp}.sqlite3"
+    dest = sqlite3.connect(target)
+    try:
+        conn.backup(dest)
+    finally:
+        dest.close()
+    return target
+
+
 def init_db(conn: sqlite3.Connection) -> None:
+    """Creates missing tables/columns/indexes. Additive only: existing rows are
+    never changed (except the derived search_text). Backs up first if an
+    existing database is about to get new tables or columns."""
+    if _pending_migration(conn):
+        backup_database(conn)
     conn.executescript(SCHEMA)
     for table, columns in ADDED_COLUMNS.items():
         existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}

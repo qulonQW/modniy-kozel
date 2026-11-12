@@ -371,3 +371,54 @@ def renumber_images(conn: sqlite3.Connection, product_id: str, ordered_ids: list
         "UPDATE product_images SET position = ? WHERE id = ? AND product_id = ?",
         [(pos, image_id, product_id) for pos, image_id in enumerate(ordered_ids)],
     )
+
+
+# --- favorites ----------------------------------------------------------------
+
+MAX_FAVORITES = 200
+
+
+class FavoritesFull(Exception):
+    """The user already has MAX_FAVORITES favorites."""
+
+
+def list_favorites(conn: sqlite3.Connection, user_id: int) -> list[PublicProduct]:
+    """The user's favorites that are still published, newest favorite first."""
+    rows = conn.execute(
+        "SELECT p.* FROM favorites f JOIN products p ON p.id = f.product_id "
+        "WHERE f.user_telegram_id = ? AND p.status = 'published' "
+        "ORDER BY f.created_at DESC, f.rowid DESC",
+        (user_id,),
+    ).fetchall()
+    images = images_by_product(conn, [r["id"] for r in rows])
+    return [to_public(r, images[r["id"]]) for r in rows]
+
+
+def add_favorite(conn: sqlite3.Connection, user_id: int, product_id: str) -> bool:
+    """Idempotent. False if the product is not published. Raises FavoritesFull."""
+    published = conn.execute(
+        "SELECT 1 FROM products WHERE id = ? AND status = 'published'", (product_id,)
+    ).fetchone()
+    if published is None:
+        return False
+    exists = conn.execute(
+        "SELECT 1 FROM favorites WHERE user_telegram_id = ? AND product_id = ?", (user_id, product_id)
+    ).fetchone()
+    if exists:
+        return True
+    count = conn.execute(
+        "SELECT COUNT(*) FROM favorites WHERE user_telegram_id = ?", (user_id,)
+    ).fetchone()[0]
+    if count >= MAX_FAVORITES:
+        raise FavoritesFull
+    conn.execute(
+        "INSERT INTO favorites (user_telegram_id, product_id, created_at) VALUES (?, ?, ?)",
+        (user_id, product_id, utc_now()),
+    )
+    return True
+
+
+def remove_favorite(conn: sqlite3.Connection, user_id: int, product_id: str) -> None:
+    conn.execute(
+        "DELETE FROM favorites WHERE user_telegram_id = ? AND product_id = ?", (user_id, product_id)
+    )

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Обране — Modniy Kozel</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="icon" type="image/png" href="./public/images/logo/logo-mark.png">
+</head>
+<body class="has-nav">
+  <div class="page">
+    <header class="header">
+      <h1 class="page-title">Обране</h1>
+      <a class="icon-btn icon-btn-end" href="./cart.html" data-cart-link aria-label="Кошик"></a>
+    </header>
+
+    <main class="section grid-page">
+      <div id="grid" aria-live="polite"><p class="empty-note">Завантаження…</p></div>
+    </main>
+  </div>
+
+  <nav data-nav="favorites" aria-label="Головне меню"></nav>
+
+  <script src="./products.js"></script>
+  <script src="./cart.js"></script>
+  <script src="./app.js"></script>
+  <script>
+    const grid = document.getElementById('grid');
+
+    function showMessage(title, note) {
+      grid.className = 'empty';
+      grid.replaceChildren(
+        MK.el('h2', { class: 'empty-title' }, title),
+        note ? MK.el('p', { class: 'summary-note' }, note) : null,
+        MK.el('a', { class: 'btn btn-inline', href: './catalog.html' }, 'До каталогу')
+      );
+    }
+
+    function render() {
+      const items = MK.favorites.products.filter((p) => MK.favorites.ids.has(p.id));
+      if (!items.length) {
+        showMessage('Тут поки порожньо', 'Натисніть ♡ на товарі, щоб зберегти його тут.');
+        return;
+      }
+      grid.className = 'grid';
+      grid.replaceChildren(...items.map(MK.productCard));
+    }
+
+    MK.FAVORITES_READY.then(() => {
+      const state = MK.favorites.state;
+      if (state === 'unavailable') {
+        showMessage('Обране доступне в Telegram', 'Відкрийте магазин через бота, щоб зберігати товари.');
+      } else if (state === 'error') {
+        MK.showLoadError(grid);
+      } else {
+        render();
+        // Un-hearting here keeps the card until the next visit, so an
+        // accidental tap can be undone in place.
+      }
+    });
+  </script>
+</body>
+</html>

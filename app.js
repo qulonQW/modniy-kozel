@@ -10,12 +10,19 @@ const MK = (() => {
   // only populated when the page is really running inside Telegram.
   const inTelegram = Boolean(tg && tg.initData);
 
+  // Signed Telegram user data for /api/me, /api/favorites and /api/orders.
+  // The server takes the user ID only from this header.
+  function authHeaders() {
+    return tg && tg.initData ? { 'X-Telegram-Init-Data': tg.initData } : {};
+  }
+
   // SVG path data for the 24x24 icons.
   const ICONS = {
     home: 'M4 11l8-7 8 7v9h-5v-6H9v6H4z',
     catalog: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
     cart: 'M6 8h12l1 12H5zM9 8V6a3 3 0 0 1 6 0v2',
     orders: 'M6 3h12v18H6zM9 8h6M9 12h6M9 16h4',
+    heart: 'M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z',
   };
 
   const NAV_ITEMS = [
@@ -71,7 +78,28 @@ const MK = (() => {
     );
   }
 
+  // Heart toggle for one product; hidden until favorites are available
+  // (i.e. inside Telegram). Clicks are handled by setupFavorites.
+  function favButton(id, className = 'fav-btn') {
+    return el(
+      'button',
+      {
+        class: className,
+        type: 'button',
+        'data-fav-id': id,
+        'aria-pressed': String(favorites.ids.has(id)),
+        'aria-label': 'Обране',
+        hidden: !favorites.enabled,
+      },
+      icon('heart')
+    );
+  }
+
   function productCard(p) {
+    return el('div', { class: 'card-wrap' }, productLink(p), favButton(p.id));
+  }
+
+  function productLink(p) {
     return el(
       'a',
       { class: 'card', href: `./product.html?id=${encodeURIComponent(p.id)}` },
@@ -148,6 +176,22 @@ const MK = (() => {
     });
   }
 
+  // Page headers: [Адмінка] [heart -> Обране] [bag]. The heart link appears
+  // once favorites are known to be available.
+  function renderHeaderActions() {
+    document.querySelectorAll('.header [data-cart-link]').forEach((cart) => {
+      const actions = el('div', { class: 'header-actions' });
+      cart.replaceWith(actions);
+      cart.classList.remove('icon-btn-end');
+      const fav = el(
+        'a',
+        { class: 'icon-btn', href: './favorites.html', 'data-fav-link': true, 'aria-label': 'Обране', hidden: true },
+        icon('heart')
+      );
+      actions.append(fav, cart);
+    });
+  }
+
   function refreshCartBadges() {
     const count = MKCart.getCount();
     document.querySelectorAll('[data-cart-count]').forEach((el) => {
@@ -221,6 +265,94 @@ const MK = (() => {
     container.hidden = false;
   }
 
+  // Short message for the shopper: Telegram's native alert, or the browser's.
+  function notify(message) {
+    if (inTelegram && tg.showAlert) tg.showAlert(message);
+    else window.alert(message);
+  }
+
+  // --- favorites (server-side, per Telegram user) ---------------------------
+  // state: 'loading' | 'ok' | 'unavailable' (no Telegram user) | 'error'
+  const favorites = { enabled: false, state: 'loading', ids: new Set(), products: [] };
+
+  function refreshFavorites() {
+    document.querySelectorAll('[data-fav-id]').forEach((b) => {
+      b.hidden = !favorites.enabled;
+      b.setAttribute('aria-pressed', String(favorites.ids.has(b.dataset.favId)));
+    });
+    document.querySelectorAll('[data-fav-link]').forEach((a) => {
+      a.hidden = !favorites.enabled;
+    });
+  }
+
+  async function loadFavorites() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/favorites`, { headers: authHeaders(), cache: 'no-store' });
+      if (res.status === 401) {
+        favorites.state = 'unavailable';
+        return false;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error('unexpected response');
+      favorites.products = data.map(normalizeProduct);
+      favorites.ids = new Set(favorites.products.map((p) => p.id));
+      favorites.enabled = true;
+      favorites.state = 'ok';
+      return true;
+    } catch (err) {
+      console.warn('Favorites could not be loaded:', err.name);
+      favorites.state = 'error';
+      return false;
+    } finally {
+      refreshFavorites();
+    }
+  }
+
+  function setFavorite(id, on) {
+    if (on) favorites.ids.add(id);
+    else favorites.ids.delete(id);
+    refreshFavorites();
+    document.dispatchEvent(new CustomEvent('mk:favorite', { detail: { id, on } }));
+  }
+
+  // Optimistic toggle; reverted with a message if the server says no.
+  function setupFavorites() {
+    document.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-fav-id]');
+      if (!button) return;
+      event.preventDefault();
+      if (button.disabled || !favorites.enabled) return;
+      const id = button.dataset.favId;
+      const on = !favorites.ids.has(id);
+      setFavorite(id, on);
+      button.disabled = true;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/favorites/${encodeURIComponent(id)}`, {
+          method: on ? 'PUT' : 'DELETE',
+          headers: authHeaders(),
+        });
+        if (!res.ok) {
+          setFavorite(id, !on);
+          haptic('error');
+          notify(
+            res.status === 409
+              ? 'В обраному вже 200 товарів. Видаліть щось, щоб додати нове.'
+              : res.status === 404
+                ? 'Цей товар більше недоступний.'
+                : 'Не вдалося оновити обране. Спробуйте ще раз.'
+          );
+        }
+      } catch {
+        setFavorite(id, !on);
+        haptic('error');
+        notify('Не вдалося оновити обране. Перевірте з’єднання з інтернетом.');
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
   // "Адмінка" link in the page header, left of the cart icon, only for users
   // the backend recognises as admins (same initData check as /api/admin).
   // Any failure just leaves the link out; shoppers never see it.
@@ -228,25 +360,25 @@ const MK = (() => {
     const header = document.querySelector('.header');
     if (!header) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/me`, {
-        headers: tg && tg.initData ? { 'X-Telegram-Init-Data': tg.initData } : {},
-        cache: 'no-store',
-      });
+      const res = await fetch(`${API_BASE_URL}/api/me`, { headers: authHeaders(), cache: 'no-store' });
       if (!res.ok || !(await res.json()).is_admin) return;
     } catch {
       return;
     }
     const link = el('a', { class: 'admin-link', href: './admin/' }, 'Адмінка');
-    const cart = header.querySelector('[data-cart-link]');
-    if (cart) cart.before(link);
+    const actions = header.querySelector('.header-actions');
+    if (actions) actions.prepend(link);
     else header.append(link);
   }
 
   setupTelegram();
-  mountAdminLink();
   setupPhotoFallback();
   renderNav();
   renderCartLinks();
+  renderHeaderActions();
+  mountAdminLink();
+  setupFavorites();
+  const FAVORITES_READY = loadFavorites();
   setupBackNavigation();
   refreshCartBadges();
   // The cart count depends on the product list, which arrives asynchronously.
@@ -256,6 +388,12 @@ const MK = (() => {
 
   return {
     el,
+    icon,
+    authHeaders,
+    notify,
+    favorites,
+    FAVORITES_READY,
+    favButton,
     formatPrice,
     stockLabel,
     productCard,

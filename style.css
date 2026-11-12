@@ -168,7 +168,16 @@ img {
   margin-right: -9px;
 }
 
-/* Admins only (app.js mountAdminLink); sits just left of the cart icon. */
+/* Right side of a page header: [Адмінка] [heart] [bag] (app.js renderHeaderActions). */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: -9px;
+}
+
+/* Admins only (app.js mountAdminLink). */
 .admin-link {
   margin-left: auto;
   margin-right: 4px;
@@ -330,6 +339,49 @@ img {
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   transition: border-color 200ms ease;
+}
+
+/* Card + its heart button (the button is a sibling of the link, not inside it). */
+.card-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.card-wrap > .card {
+  flex: 1;
+}
+
+.fav-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.fav-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+[data-fav-id][aria-pressed="true"] .icon {
+  fill: currentColor;
+}
+
+.product-bar-end {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .card-media {

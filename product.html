@@ -19,7 +19,10 @@
         <a class="icon-btn back-link" href="./catalog.html" data-back-link aria-label="Назад">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
         </a>
-        <a class="icon-btn" href="./cart.html" data-cart-link aria-label="Кошик"></a>
+        <span class="product-bar-end">
+          <button class="icon-btn fav-toggle" type="button" id="fav" aria-label="Обране" hidden></button>
+          <a class="icon-btn" href="./cart.html" data-cart-link aria-label="Кошик"></a>
+        </span>
       </div>
     </div>
 
@@ -88,6 +91,14 @@
       document.getElementById('price').textContent = MK.formatPrice(p.price);
       document.getElementById('stock').replaceChildren(MK.stockLabel(p.inStock));
       document.getElementById('description').textContent = p.description;
+
+      const fav = document.getElementById('fav');
+      fav.dataset.favId = p.id;
+      fav.replaceChildren(MK.icon('heart'));
+      MK.FAVORITES_READY.then(() => {
+        fav.hidden = !MK.favorites.enabled;
+        fav.setAttribute('aria-pressed', String(MK.favorites.ids.has(p.id)));
+      });
 
       const sizes = document.getElementById('sizes');
       const sizeError = document.getElementById('size-error');

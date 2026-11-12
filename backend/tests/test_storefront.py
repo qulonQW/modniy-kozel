@@ -6,7 +6,7 @@ from app.config import REPO_DIR
 
 
 @pytest.mark.parametrize("path", ["/", "/index.html", "/catalog.html", "/product.html", "/cart.html",
-                                  "/checkout.html", "/orders.html", "/app.js", "/products.js", "/style.css",
+                                  "/checkout.html", "/orders.html", "/favorites.html", "/app.js", "/products.js", "/style.css",
                                   "/public/images/logo/logo-mark.png"])
 def test_storefront_files_are_served(client, path):
     assert client.get(path).status_code == 200
@@ -42,7 +42,7 @@ def test_storefront_never_renders_html_strings():
     """Product data comes from the admin and the supplier import, so the
     storefront builds DOM with createElement/textContent only."""
     files = ["app.js", "cart.js", "products.js", "index.html", "catalog.html", "product.html",
-             "cart.html", "checkout.html", "orders.html"]
+             "cart.html", "checkout.html", "orders.html", "favorites.html"]
     for name in files:
         text = (REPO_DIR / name).read_text(encoding="utf-8")
         for api in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "MK.esc"):
