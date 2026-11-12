@@ -1,4 +1,4 @@
-# Runbook — Modniy Kozel Mini App
+# Runbook — Telegram Mini App shop
 
 One FastAPI process serves the storefront (`/`), the admin page (`/admin/`)
 and the API (`/api/...`) on one origin. Data: one SQLite file + an uploads
@@ -28,6 +28,7 @@ refuses to start with `DEV_ADMIN_ID` set when `ENV=prod`.
 | Name | Meaning |
 |---|---|
 | `ENV` | `dev` or `prod` |
+| `BRAND` | which shop: a folder in `brands/` (default `modniy-kozel`); see `CLAUDE.md` |
 | `BOT_TOKEN` | token of the bot that opens the Mini App; verifies initData and sends order notifications |
 | `ADMIN_TELEGRAM_IDS` | comma-separated numeric Telegram user IDs with admin access; each gets new-order messages |
 | `DEV_ADMIN_ID` | dev only: act as this user without Telegram; must be empty in prod |
@@ -155,7 +156,8 @@ in the server admin, not in a local copy.
 
 ## 9. Where things are
 
-- Order texts for shoppers (labels, confirmation, statuses): `texts.js`
+- Shop name, logo, colours, fonts: `brands/<BRAND>/` (`brand.json`, `logo.png`, `theme.css`)
+- Order texts for shoppers (labels, confirmation, statuses): `brands/<BRAND>/texts.js`
 - Bot message to admins: `backend/app/notify.py` (`order_message`)
 - initData lifetimes: `backend/app/auth.py` (admin 1 h, shoppers 24 h)
 - Rate limits: `backend/app/ratelimit.py`

@@ -1,0 +1,8 @@
+{
+  "name": "Modniy Kozel",
+  "short_name": "MK",
+  "hero_lines": ["Modniy", "Kozel"],
+  "tagline": "Брендовий одяг. Без компромісів.",
+  "lang": "uk",
+  "fonts_url": "https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap"
+}

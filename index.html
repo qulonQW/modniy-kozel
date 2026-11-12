@@ -1,27 +1,29 @@
 <!doctype html>
-<html lang="uk">
+<html lang="{{brand.lang}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Modniy Kozel</title>
+  <title>{{brand.name}}</title>
+  <meta name="application-name" content="{{brand.name}}">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap"></noscript>
+  <link rel="preload" as="style" href="{{brand.fonts_url}}" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="{{brand.fonts_url}}"></noscript>
+  <link rel="stylesheet" href="./brand/theme.css">
   <link rel="stylesheet" href="./style.css">
-  <link rel="icon" type="image/png" href="./public/images/logo/logo-mark.png">
+  <link rel="icon" type="image/png" href="./brand/logo.png">
 </head>
 <body class="has-nav">
   <div class="page">
     <header class="header">
-      <a class="logo" href="./index.html"><img src="./public/images/logo/logo-mark.png" alt="MK" width="28" height="28" onerror="this.replaceWith('MK')"></a>
+      <a class="logo" href="./index.html"><img src="./brand/logo.png" alt="{{brand.short_name}}" width="28" height="28" onerror="this.replaceWith(this.alt)"></a>
       <a class="icon-btn icon-btn-end" href="./cart.html" data-cart-link aria-label="Кошик"></a>
     </header>
 
     <section class="hero">
-      <h1 class="hero-title">Modniy<br>Kozel</h1>
-      <p class="hero-tagline">Брендовий одяг. Без компромісів.</p>
+      <h1 class="hero-title">{{brand.hero}}</h1>
+      <p class="hero-tagline">{{brand.tagline}}</p>
     </section>
 
     <div class="filter" id="filter"></div>

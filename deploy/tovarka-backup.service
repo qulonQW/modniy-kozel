@@ -1,5 +1,5 @@
 [Unit]
-Description=Modniy Kozel nightly database backup
+Description=Shop Mini App nightly database backup
 
 [Service]
 Type=oneshot

@@ -1,5 +1,5 @@
 [Unit]
-Description=Modniy Kozel Mini App (FastAPI, one process)
+Description=Shop Mini App (FastAPI, one process)
 After=network-online.target
 Wants=network-online.target
 

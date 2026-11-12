@@ -61,6 +61,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 # Filled by deploy/setup.sh. Fill in BOT_TOKEN and ADMIN_TELEGRAM_IDS, then:
 #   sudo systemctl restart tovarka
 ENV=prod
+BRAND=${BRAND:-modniy-kozel}
 BOT_TOKEN=
 ADMIN_TELEGRAM_IDS=
 DEV_ADMIN_ID=

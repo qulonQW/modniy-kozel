@@ -437,6 +437,9 @@ const MK = (() => {
   window.addEventListener('pageshow', refreshCartBadges);
 
   return {
+    // The shop's name from the page (<meta name="application-name">, filled
+    // from the brand by the server), so no script names a shop itself.
+    shopName: (document.querySelector('meta[name="application-name"]') || {}).content || '',
     el,
     icon,
     inTelegram,

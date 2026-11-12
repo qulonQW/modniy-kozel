@@ -14,6 +14,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import errors, notify, routes_admin, routes_public, routes_user
+from .brand import load_brand
 from .config import REPO_DIR, Settings, validate_settings
 from .db import connect, init_db
 from .ratelimit import build_limiters
@@ -23,12 +24,11 @@ from .storefront import Storefront
 IMMUTABLE_IMAGE_PREFIXES = ("/uploads/thumbs/", "/uploads/products/")
 DEMO_IMAGE_PREFIXES = ("/public/images/", "/images/products/")
 
-STOREFRONT_FILES = frozenset(
-    {
-        "index.html", "catalog.html", "product.html", "cart.html", "checkout.html", "orders.html",
-        "favorites.html", "texts.js",
-        "app.js", "cart.js", "products.js", "style.css",
-    }
+# The shop's own files (repo root); the brand adds brand/theme.css,
+# brand/texts.js and brand/logo.png (app/brand.py).
+STOREFRONT_FILES = (
+    "index.html", "catalog.html", "product.html", "cart.html", "checkout.html", "orders.html",
+    "favorites.html", "app.js", "cart.js", "products.js", "style.css",
 )
 
 # No inline scripts; only our own files, the Telegram SDK and Google Fonts.
@@ -50,6 +50,7 @@ ADMIN_CSP = "; ".join(
 
 def create_app(settings: Settings) -> FastAPI:
     validate_settings(settings)  # raises ConfigError before anything is served
+    brand = load_brand(settings.brand)  # same: a broken brand folder never serves
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -68,13 +69,14 @@ def create_app(settings: Settings) -> FastAPI:
 
     is_dev = settings.env == "dev"
     app = FastAPI(
-        title="Tovarka API",
+        title=f"{brand.name} API",
         lifespan=lifespan,
         docs_url="/docs" if is_dev else None,
         redoc_url=None,
         openapi_url="/openapi.json" if is_dev else None,
     )
     app.state.settings = settings
+    app.state.brand = brand
     # Tests replace this with a fake; None (no token, dev) keeps notifications pending.
     app.state.notifier = notify.BotNotifier(settings.bot_token) if settings.bot_token else None
 
@@ -128,26 +130,35 @@ def create_app(settings: Settings) -> FastAPI:
         name="imported-images",
     )
     # Admin page (static HTML/JS/CSS). Data still needs initData on /api/admin.
+    # Its index.html gets the brand's name/fonts; the rest is served as is.
+    admin_page = Storefront({"index.html": REPO_DIR / "admin" / "index.html"}, brand.html_values())
+
+    @app.get("/admin/", include_in_schema=False)
+    @app.get("/admin/index.html", include_in_schema=False)
+    def admin_index(request: Request):
+        return admin_page.response(request, "index.html")
+
     app.mount("/admin", StaticFiles(directory=REPO_DIR / "admin", html=True), name="admin")
-    app.mount(
-        "/public/images/logo",
-        StaticFiles(directory=REPO_DIR / "public" / "images" / "logo", check_dir=False),
-        name="logo",
-    )
 
     # Storefront: an explicit allowlist of files from the repo root (the root
     # itself also holds backend/, tools/ and import/, which must never be served).
     # Registered last so it cannot shadow /api, /admin or the image mounts.
     # HTML gets versioned asset URLs; versioned assets are cached for a year
     # (app/storefront.py), so page changes inside Telegram skip JS/CSS.
-    shop_files = Storefront(REPO_DIR)
+    shop_files = Storefront(
+        {**{name: REPO_DIR / name for name in STOREFRONT_FILES}, **brand.files()},
+        brand.html_values(),
+    )
 
     @app.get("/", include_in_schema=False)
     @app.get("/{name}", include_in_schema=False)
+    @app.get("/brand/{name}", include_in_schema=False)
     def storefront(request: Request, name: str = "index.html"):
-        if name == "admin":  # this route would otherwise swallow the mount's redirect
+        if request.url.path.startswith("/brand/"):
+            name = f"brand/{name}"
+        elif name == "admin":  # this route would otherwise swallow the mount's redirect
             return RedirectResponse("/admin/", status_code=308)
-        if name not in STOREFRONT_FILES:
+        if name not in shop_files:
             raise HTTPException(status_code=404, detail="Not found")
         return shop_files.response(request, name)
 

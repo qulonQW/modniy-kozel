@@ -82,6 +82,7 @@ class Settings:
     allowed_origin: str = ""
     database_path: Path = BACKEND_DIR / "data" / "shop.sqlite3"
     uploads_dir: Path = BACKEND_DIR / "uploads"
+    brand: str = "modniy-kozel"  # folder in brands/, see app/brand.py
 
 
 def load_settings(env_file: Path = ENV_FILE) -> Settings:
@@ -101,4 +102,5 @@ def load_settings(env_file: Path = ENV_FILE) -> Settings:
         allowed_origin=get("ALLOWED_ORIGIN"),
         database_path=Path(db_path) if db_path else Settings.database_path,
         uploads_dir=Path(uploads) if uploads else Settings.uploads_dir,
+        brand=get("BRAND") or Settings.brand,
     )

@@ -6,8 +6,8 @@ from app.config import REPO_DIR
 
 
 @pytest.mark.parametrize("path", ["/", "/index.html", "/catalog.html", "/product.html", "/cart.html",
-                                  "/checkout.html", "/orders.html", "/favorites.html", "/texts.js", "/app.js", "/products.js", "/style.css",
-                                  "/public/images/logo/logo-mark.png"])
+                                  "/checkout.html", "/orders.html", "/favorites.html", "/app.js", "/products.js", "/style.css",
+                                  "/brand/texts.js", "/brand/theme.css", "/brand/logo.png"])
 def test_storefront_files_are_served(client, path):
     assert client.get(path).status_code == 200
 
@@ -16,6 +16,8 @@ def test_storefront_files_are_served(client, path):
     "/.env", "/.gitignore", "/package.json", "/index.js", "/backend/.env", "/backend/data/shop.sqlite3",
     "/tools/import_products.py", "/import/private/costs.json", "/import/products.public.json",
     "/import/import_report.md", "/..%2Fbackend%2F.env", "/%2e%2e/backend/.env", "/admin.js",
+    "/texts.js", "/brand/brand.json", "/brand/logo-full.jpg", "/brand/..%2F..%2Fbackend%2F.env",
+    "/brands/modniy-kozel/brand.json", "/public/images/logo/logo-mark.png",
 ])
 def test_nothing_else_from_repo_root_is_served(client, path):
     assert client.get(path).status_code == 404
@@ -47,7 +49,7 @@ def test_storefront_never_renders_html_strings():
     """Product data comes from the admin and the supplier import, so the
     storefront builds DOM with createElement/textContent only."""
     files = ["app.js", "cart.js", "products.js", "index.html", "catalog.html", "product.html",
-             "cart.html", "checkout.html", "orders.html", "favorites.html", "texts.js"]
+             "cart.html", "checkout.html", "orders.html", "favorites.html", "brands/modniy-kozel/texts.js"]
     for name in files:
         text = (REPO_DIR / name).read_text(encoding="utf-8")
         for api in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "MK.esc"):
@@ -59,8 +61,8 @@ def test_html_uses_versioned_assets_that_are_cached_forever(client):
 
     html = client.get("/catalog.html")
     assert html.headers["cache-control"] == "no-cache"
-    refs = dict(re.findall(r'"\./(app\.js|style\.css|cart\.js|products\.js|texts\.js)\?v=([0-9a-f]{12})"', html.text))
-    assert {"app.js", "style.css", "products.js", "cart.js"} <= set(refs)
+    refs = dict(re.findall(r'"\./(app\.js|style\.css|cart\.js|products\.js|brand/[a-z]+\.[a-z]+)\?v=([0-9a-f]{12})"', html.text))
+    assert {"app.js", "style.css", "products.js", "cart.js", "brand/theme.css", "brand/logo.png"} <= set(refs)
     fresh = client.get(f"/app.js?v={refs['app.js']}")
     assert fresh.headers["cache-control"] == "public, max-age=31536000, immutable"
     assert fresh.headers["content-type"].startswith("text/javascript")
@@ -76,6 +78,6 @@ def test_unchanged_html_is_a_304(client):
 
 
 def test_shoppers_never_see_order_numbers():
-    for name in ("checkout.html", "orders.html", "texts.js"):
+    for name in ("checkout.html", "orders.html", "brands/modniy-kozel/texts.js"):
         text = (REPO_DIR / name).read_text(encoding="utf-8")
         assert "order.id" not in text and "o.id" not in text and "№ ${" not in text, name

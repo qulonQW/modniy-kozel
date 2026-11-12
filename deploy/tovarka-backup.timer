@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the Modniy Kozel database backup every night
+Description=Run the shop database backup every night
 
 [Timer]
 OnCalendar=*-*-* 03:30:00
