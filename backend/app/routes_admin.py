@@ -7,11 +7,11 @@ import secrets
 import sqlite3
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
-from . import repo
+from . import notify, orders, repo
 from .auth import require_admin
 from .deps import get_db, get_settings
 from .config import Settings
@@ -20,11 +20,15 @@ from .ratelimit import limit
 from .schemas import (
     MAX_IMAGES,
     PRODUCT_ID_RE,
+    AdminOrder,
+    AdminOrderList,
     AdminProduct,
     AdminProductList,
     BulkStatus,
     Category,
     ImageOrder,
+    OrderStatus,
+    OrderStatusUpdate,
     ProductCreate,
     ProductUpdate,
     Status,
@@ -226,3 +230,54 @@ async def upload_image(
         return _get_or_404(conn, product_id)
 
     return await run_in_threadpool(store)
+
+
+# --- orders -------------------------------------------------------------------
+
+OrderIdPath = Annotated[int, Path(ge=1, le=2**53)]
+
+
+def _order_or_404(conn: sqlite3.Connection, order_id: int) -> AdminOrder:
+    order = orders.admin_get(conn, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+
+@router.get("/orders", response_model=AdminOrderList)
+def list_orders(
+    conn: Db,
+    response: Response,
+    status: OrderStatus | None = None,
+    limit_: Annotated[int, Query(alias="limit", ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    response.headers["Cache-Control"] = "no-store"
+    items, total = orders.admin_list(conn, status, limit_, offset)
+    return AdminOrderList(items=items, total=total)
+
+
+@router.get("/orders/{order_id}", response_model=AdminOrder)
+def get_order(order_id: OrderIdPath, conn: Db, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return _order_or_404(conn, order_id)
+
+
+@router.patch("/orders/{order_id}", response_model=AdminOrder)
+def update_order(order_id: OrderIdPath, body: OrderStatusUpdate, conn: Db):
+    with conn:
+        if not orders.set_status(conn, order_id, body.status):
+            raise HTTPException(status_code=404, detail="Order not found")
+    return _order_or_404(conn, order_id)
+
+
+@router.post("/orders/{order_id}/resend", response_model=AdminOrder)
+def resend_order_notification(
+    order_id: OrderIdPath, conn: Db, request: Request, background: BackgroundTasks
+):
+    """Queues the notification again and sends it right after the response."""
+    with conn:
+        _order_or_404(conn, order_id)
+        notify.reset_for_resend(conn, order_id)
+    background.add_task(notify.run_due, request.app, order_id)
+    return _order_or_404(conn, order_id)

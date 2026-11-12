@@ -280,3 +280,64 @@ main {
 }
 .duplicate-item:hover, .duplicate-item:focus-visible { background: var(--border); }
 .duplicate-item .muted { color: var(--muted); }
+
+/* --- Tabs and orders ------------------------------------------------------ */
+
+.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tab {
+  flex: 1;
+  min-height: 40px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn, 4px);
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+}
+.tab[aria-pressed='true'] { background: var(--text); border-color: var(--text); color: var(--bg); }
+.tab-count {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+}
+.order-list { margin: 0; padding: 0; list-style: none; }
+.order-row {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+.order-row-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.status-new { background: rgba(255, 176, 32, 0.15); color: var(--amber); }
+.status-confirmed { background: rgba(61, 190, 108, 0.15); color: var(--green); }
+.status-cancelled { background: rgba(229, 72, 77, 0.12); color: var(--red); }
+.detail { display: grid; gap: 6px; margin-bottom: 16px; font-size: 14px; overflow-wrap: anywhere; }
+.detail dt { color: var(--muted); font-size: 12px; }
+.detail dd { margin: 0 0 6px; }
+.detail a { color: var(--text); text-decoration: underline; }
+.items-table { width: 100%; margin-bottom: 16px; border-collapse: collapse; font-size: 14px; }
+.items-table td { padding: 6px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.items-table td:last-child { text-align: right; white-space: nowrap; padding-left: 12px; }
+.items-table tr.total td { border-bottom: 0; font-weight: 600; }
+.order-actions, .order-notify { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.order-notify h2 { margin-bottom: 8px; font-size: 15px; }
+.notify-list { margin: 0 0 12px; padding: 0; list-style: none; font-size: 14px; }
+.notify-list li { padding: 4px 0; }
+.notify-sent { color: var(--green); }
+.notify-pending { color: var(--amber); }
+.notify-failed { color: var(--red); }
+.muted { color: var(--muted); }

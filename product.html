@@ -141,7 +141,7 @@
           MK.haptic('error');
           return;
         }
-        MKCart.add(p.id, selected);
+        MKCart.add(p.id, selected, p.price);
         MK.refreshCartBadges();
         MK.haptic('success');
         setAdded(true);

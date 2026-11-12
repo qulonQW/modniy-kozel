@@ -3,6 +3,8 @@ real one from .env."""
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -10,7 +12,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import routes_admin, routes_public, routes_user
+from . import notify, routes_admin, routes_public, routes_user
 from .config import REPO_DIR, Settings, validate_settings
 from .db import connect, init_db
 from .ratelimit import build_limiters
@@ -19,7 +21,7 @@ from .ratelimit import build_limiters
 STOREFRONT_FILES = frozenset(
     {
         "index.html", "catalog.html", "product.html", "cart.html", "checkout.html", "orders.html",
-        "favorites.html",
+        "favorites.html", "texts.js",
         "app.js", "cart.js", "products.js", "style.css",
     }
 )
@@ -51,7 +53,13 @@ def create_app(settings: Settings) -> FastAPI:
             init_db(conn)
         finally:
             conn.close()
-        yield
+        retry = asyncio.create_task(notify.retry_loop(app))
+        try:
+            yield
+        finally:
+            retry.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await retry
 
     is_dev = settings.env == "dev"
     app = FastAPI(
@@ -62,6 +70,8 @@ def create_app(settings: Settings) -> FastAPI:
         openapi_url="/openapi.json" if is_dev else None,
     )
     app.state.settings = settings
+    # Tests replace this with a fake; None (no token, dev) keeps notifications pending.
+    app.state.notifier = notify.BotNotifier(settings.bot_token) if settings.bot_token else None
 
     if settings.allowed_origin:
         app.add_middleware(

@@ -23,34 +23,53 @@
     </header>
 
     <form class="section" id="form" novalidate>
+      <section class="summary order-summary" aria-labelledby="summary-title">
+        <h2 class="summary-title" id="summary-title" data-text="checkout.summaryTitle"></h2>
+        <div id="summary-lines"></div>
+        <p class="summary-note" id="skipped-note" data-text="checkout.skippedNote" hidden></p>
+        <div class="summary-row summary-total"><span data-text="checkout.total"></span><span id="total"></span></div>
+      </section>
+
       <div class="form-section">
         <label class="field">
-          <span class="label">Ім'я та прізвище</span>
-          <input class="input" name="name" type="text" autocomplete="name">
+          <span class="label" data-text="checkout.nameLabel"></span>
+          <input class="input" name="customer_name" type="text" autocomplete="name" maxlength="100" required>
+          <span class="field-error" data-error="customer_name" hidden></span>
         </label>
 
         <label class="field">
-          <span class="label">Телефон</span>
+          <span class="label" data-text="checkout.phoneLabel"></span>
           <span class="phone-field">
             <span class="phone-prefix">+380</span>
             <input class="input" name="phone" type="tel" inputmode="numeric" autocomplete="off"
-              placeholder="XX XXX XX XX">
+              placeholder="XX XXX XX XX" required>
           </span>
+          <span class="field-error" data-error="phone" hidden></span>
         </label>
 
         <label class="field">
-          <span class="label">Місто</span>
-          <input class="input" name="city" type="text" autocomplete="address-level2">
+          <span class="label" data-text="checkout.cityLabel"></span>
+          <input class="input" name="city" type="text" autocomplete="address-level2" maxlength="100" required>
+          <span class="field-error" data-error="city" hidden></span>
         </label>
 
         <label class="field">
-          <span class="label">Відділення НП</span>
-          <input class="input" name="branch" type="text" autocomplete="off">
+          <span class="label" data-text="checkout.deliveryLabel"></span>
+          <input class="input" name="delivery_point" type="text" autocomplete="off" maxlength="200" required>
+          <span class="field-error" data-error="delivery_point" hidden></span>
+        </label>
+
+        <label class="field">
+          <span class="label" data-text="checkout.commentLabel"></span>
+          <textarea class="input textarea" name="comment" rows="3" maxlength="500"></textarea>
+          <span class="field-error" data-error="comment" hidden></span>
         </label>
       </div>
 
       <div class="submit-block">
-        <button class="btn" type="submit">Підтвердити замовлення</button>
+        <p class="form-message" id="form-message" role="alert" hidden></p>
+        <a class="btn btn-secondary" href="./cart.html" id="to-cart" hidden>До кошика</a>
+        <button class="btn" type="submit" id="submit"></button>
       </div>
     </form>
   </div>
@@ -60,26 +79,57 @@
     <a class="btn btn-inline" href="./catalog.html">До каталогу</a>
   </div>
 
-  <div class="page success" id="demo-notice" hidden>
-    <h1 class="success-title">Демо-версія.</h1>
-    <p class="success-note">Замовлення не надсилаються.</p>
+  <div class="page success" id="success" hidden>
+    <h1 class="success-title" data-text="confirmation.title"></h1>
+    <p class="success-number" id="order-number"></p>
+    <p class="success-note" data-text="confirmation.message"></p>
     <div class="success-actions">
-      <a class="btn" href="./index.html">Продовжити покупки</a>
+      <a class="btn" href="./orders.html" data-text="confirmation.toOrders"></a>
+      <a class="btn btn-secondary" href="./index.html" data-text="confirmation.continue"></a>
     </div>
   </div>
 
+  <script src="./texts.js"></script>
   <script src="./products.js"></script>
   <script src="./cart.js"></script>
   <script src="./app.js"></script>
   <script>
     const form = document.getElementById('form');
+    const submit = document.getElementById('submit');
+    const message = document.getElementById('form-message');
+    const KEY_STORAGE = 'mk_order_key';
+
+    // All labels come from texts.js (one place to edit wording).
+    document.querySelectorAll('[data-text]').forEach((node) => {
+      const value = node.dataset.text.split('.').reduce((obj, key) => obj && obj[key], TEXTS);
+      if (typeof value === 'string') node.textContent = value;
+    });
+    form.elements.delivery_point.placeholder = TEXTS.checkout.deliveryPlaceholder;
+    form.elements.comment.placeholder = TEXTS.checkout.commentPlaceholder;
+    submit.textContent = TEXTS.checkout.submit;
+
+    // Prices shown before confirming. Starts from the catalogue; replaced by
+    // the server's prices if it reports a change (409 price_changed).
+    let serverPrices = {};
+    const priceOf = (line) => (line.product.id in serverPrices ? serverPrices[line.product.id] : line.product.price);
+    const orderTotal = () => MKCart.getOrderable().reduce((sum, l) => sum + l.qty * priceOf(l), 0);
+
+    function renderSummary() {
+      const lines = MKCart.getOrderable();
+      document.getElementById('summary-lines').replaceChildren(...lines.map((l) => MK.el('div', { class: 'summary-row' },
+        MK.el('span', { class: 'summary-item' }, `${l.product.name}${l.size ? `, ${l.size}` : ''}${l.qty > 1 ? ` × ${l.qty}` : ''}`),
+        MK.el('span', null, MK.formatPrice(l.qty * priceOf(l))))));
+      document.getElementById('skipped-note').hidden = MKCart.getItems().length === lines.length;
+      document.getElementById('total').textContent = MK.formatPrice(orderTotal());
+    }
 
     PRODUCTS_READY.then((loaded) => {
       if (!loaded) {
         MK.showLoadError(document.getElementById('empty'));
-      } else if (MKCart.getCount() === 0) {
+      } else if (MKCart.getOrderable().length === 0) {
         document.getElementById('empty').hidden = false;
       } else {
+        renderSummary();
         document.getElementById('checkout').hidden = false;
       }
     });
@@ -93,12 +143,142 @@
         .slice(0, 9);
     });
 
-    // Demo only: nothing is sent or saved, and the cart is left as it is.
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
+    // --- validation (the server checks the same rules again) -------------------
+    const oneLine = (value) => value.trim().replace(/\s+/g, ' ');
+
+    function readForm() {
+      const f = form.elements;
+      return {
+        customer_name: oneLine(f.customer_name.value),
+        phone: f.phone.value.replace(/\D/g, ''),
+        city: oneLine(f.city.value),
+        delivery_point: oneLine(f.delivery_point.value),
+        comment: f.comment.value.trim(),
+      };
+    }
+
+    function validate(v) {
+      const errors = {};
+      if (v.customer_name.length < 2 || v.customer_name.length > 100) errors.customer_name = TEXTS.errors.name;
+      if (!/^[1-9]\d{8}$/.test(v.phone)) errors.phone = TEXTS.errors.phone;
+      if (v.city.length < 2 || v.city.length > 100) errors.city = TEXTS.errors.city;
+      if (v.delivery_point.length < 1 || v.delivery_point.length > 200) errors.delivery_point = TEXTS.errors.delivery;
+      if (v.comment.length > 500) errors.comment = TEXTS.errors.comment;
+      return errors;
+    }
+
+    function showErrors(errors) {
+      form.querySelectorAll('[data-error]').forEach((node) => {
+        const text = errors[node.dataset.error];
+        node.textContent = text || '';
+        node.hidden = !text;
+        const input = form.elements[node.dataset.error];
+        if (input) input.setAttribute('aria-invalid', String(Boolean(text)));
+      });
+    }
+
+    function showMessage(text, withCartLink = false) {
+      message.textContent = text || '';
+      message.hidden = !text;
+      document.getElementById('to-cart').hidden = !withCartLink;
+    }
+
+    // --- idempotency: one key per cart content, kept until the order succeeds.
+    // A retry after a lost response (or a double tap) gets the same order back.
+    function randomKey() {
+      if (crypto.randomUUID) return crypto.randomUUID();
+      return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function idempotencyKey(items) {
+      const signature = JSON.stringify(items);
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(KEY_STORAGE));
+        if (saved && saved.signature === signature && typeof saved.key === 'string') return saved.key;
+      } catch {
+        // fall through to a new key
+      }
+      const key = randomKey();
+      try {
+        sessionStorage.setItem(KEY_STORAGE, JSON.stringify({ signature, key }));
+      } catch {
+        // storage unavailable: the in-memory key below still covers double taps
+      }
+      return key;
+    }
+
+    function setSending(sending) {
+      submit.disabled = sending;
+      submit.textContent = sending ? TEXTS.checkout.sending : TEXTS.checkout.submit;
+    }
+
+    function showSuccess(order) {
+      MKCart.clear();
+      try { sessionStorage.removeItem(KEY_STORAGE); } catch { /* ignore */ }
+      MK.refreshCartBadges();
+      document.getElementById('order-number').textContent = TEXTS.confirmation.orderNumber(order.id);
       document.getElementById('checkout').hidden = true;
-      document.getElementById('demo-notice').hidden = false;
+      document.getElementById('success').hidden = false;
       window.scrollTo(0, 0);
+      MK.haptic('success');
+    }
+
+    let sending = false;
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (sending) return; // double tap
+      const values = readForm();
+      const errors = validate(values);
+      showErrors(errors);
+      if (Object.keys(errors).length) {
+        showMessage(TEXTS.errors.form);
+        MK.haptic('error');
+        return;
+      }
+      const items = MKCart.getOrderable().map((l) => ({ product_id: l.id, size: l.size, qty: l.qty }));
+      if (!items.length) {
+        showMessage(TEXTS.cart.nothingToOrder, true);
+        return;
+      }
+
+      sending = true;
+      setSending(true);
+      showMessage('');
+      const body = { ...values, items, idempotency_key: idempotencyKey(items), expected_total: orderTotal() };
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/orders`, {
+          method: 'POST',
+          headers: { ...MK.authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data) {
+          showSuccess(data);
+          return;
+        }
+        MK.haptic('error');
+        if (res.status === 409 && data && data.code === 'price_changed') {
+          serverPrices = data.prices || {};
+          renderSummary();
+          showMessage(TEXTS.errors.priceChanged(MK.formatPrice(data.total)));
+        } else if (res.status === 409) {
+          showMessage(TEXTS.errors.cartChanged, true);
+        } else if (res.status === 401) {
+          showMessage(MK.inTelegram ? TEXTS.errors.sessionExpired : TEXTS.errors.notInTelegram);
+        } else if (res.status === 422) {
+          showMessage(TEXTS.errors.form);
+        } else if (res.status === 429) {
+          showMessage(TEXTS.errors.tooMany);
+        } else {
+          showMessage(TEXTS.errors.server);
+        }
+      } catch {
+        MK.haptic('error');
+        showMessage(TEXTS.errors.network);
+      } finally {
+        sending = false;
+        if (document.getElementById('success').hidden) setSending(false);
+      }
     });
   </script>
 </body>

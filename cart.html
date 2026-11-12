@@ -19,6 +19,7 @@
 
     <main>
       <div class="section" id="filled" hidden>
+        <div class="notices" id="notices"></div>
         <div class="cart-list" id="list"></div>
         <div class="summary">
           <div class="summary-row"><span>Сума</span><span id="subtotal"></span></div>
@@ -26,7 +27,7 @@
           <p class="summary-note">Вартість доставки за тарифами перевізника</p>
           <div class="summary-row summary-total"><span>До сплати</span><span id="total"></span></div>
         </div>
-        <a class="btn" href="./checkout.html">Оформити замовлення</a>
+        <a class="btn" href="./checkout.html" id="to-checkout">Оформити замовлення</a>
       </div>
 
       <div class="empty" id="empty" hidden>
@@ -38,6 +39,7 @@
 
   <nav data-nav="cart" aria-label="Головне меню"></nav>
 
+  <script src="./texts.js"></script>
   <script src="./products.js"></script>
   <script src="./cart.js"></script>
   <script src="./app.js"></script>
@@ -56,28 +58,60 @@
       return svg;
     }
 
+    let notes = []; // one-time notices from the last load (removed items, price changes)
+
+    function lineNote(line) {
+      if (line.status === 'out_of_stock') return TEXTS.cart.outOfStock;
+      if (line.status === 'invalid_size') return TEXTS.cart.sizeUnavailable;
+      if (line.oldPrice !== null) return TEXTS.cart.priceChanged(MK.formatPrice(line.oldPrice));
+      return null;
+    }
+
     function render() {
       const items = MKCart.getItems();
+      const orderable = MKCart.getOrderable();
       document.getElementById('filled').hidden = items.length === 0;
       document.getElementById('empty').hidden = items.length > 0;
 
-      list.replaceChildren(...items.map(({ product: p, size, qty }) => MK.el('article', { class: 'cart-item' },
-        MK.el('a', { class: 'cart-thumb', href: `./product.html?id=${encodeURIComponent(p.id)}` },
-          MK.el('img', { src: p.imageUrl, alt: p.name, loading: 'lazy' })),
-        MK.el('div', { class: 'cart-info' },
-          MK.el('h2', { class: 'cart-name' }, p.name),
-          MK.el('p', { class: 'cart-size' }, `Розмір ${size}${qty > 1 ? ` · ${qty} шт.` : ''}`),
-          MK.el('p', { class: 'price cart-price' }, MK.formatPrice(p.price * qty))),
-        MK.el('button', {
-          class: 'icon-btn cart-remove', type: 'button', 'data-id': p.id, 'data-size': size,
-          'aria-label': `Видалити ${p.name}`,
-        }, removeIcon()))));
+      const skipped = items.length > orderable.length;
+      document.getElementById('notices').replaceChildren(
+        ...[...notes, skipped ? TEXTS.cart.skipped : null]
+          .filter(Boolean)
+          .map((text) => MK.el('p', { class: 'notice' }, text))
+      );
+
+      list.replaceChildren(...items.map((line) => {
+        const { product: p, size, qty } = line;
+        const note = lineNote(line);
+        return MK.el('article', { class: line.status === 'ok' ? 'cart-item' : 'cart-item is-blocked' },
+          MK.el('a', { class: 'cart-thumb', href: `./product.html?id=${encodeURIComponent(p.id)}` },
+            MK.el('img', { src: p.imageUrl, alt: p.name, loading: 'lazy', width: 72, height: 96 })),
+          MK.el('div', { class: 'cart-info' },
+            MK.el('h2', { class: 'cart-name' }, p.name),
+            MK.el('p', { class: 'cart-size' }, `${size ? `Розмір ${size}` : ''}${size && qty > 1 ? ' · ' : ''}${qty > 1 ? `${qty} шт.` : ''}`),
+            note ? MK.el('p', { class: line.status === 'ok' ? 'line-note' : 'line-note line-note-bad' }, note) : null,
+            MK.el('p', { class: 'price cart-price' }, MK.formatPrice(p.price * qty))),
+          MK.el('button', {
+            class: 'icon-btn cart-remove', type: 'button', 'data-id': p.id, 'data-size': size,
+            'aria-label': `Видалити ${p.name}`,
+          }, removeIcon()));
+      }));
 
       const total = MK.formatPrice(MKCart.getTotal());
       document.getElementById('subtotal').textContent = total;
       document.getElementById('total').textContent = total;
+      const checkout = document.getElementById('to-checkout');
+      checkout.classList.toggle('btn-disabled', orderable.length === 0);
+      checkout.setAttribute('aria-disabled', String(orderable.length === 0));
       MK.refreshCartBadges();
     }
+
+    document.getElementById('to-checkout').addEventListener('click', (event) => {
+      if (MKCart.getOrderable().length === 0) {
+        event.preventDefault();
+        MK.notify(TEXTS.cart.nothingToOrder);
+      }
+    });
 
     list.addEventListener('click', (event) => {
       const button = event.target.closest('.cart-remove');
@@ -93,7 +127,13 @@
         MK.showLoadError(document.getElementById('empty'));
         return;
       }
+      // Shown once: items that disappeared, and prices that changed since they
+      // were added. The total below is already the current one.
+      const removed = MKCart.pruneMissing();
+      const repriced = MKCart.review().some((l) => l.oldPrice !== null);
+      notes = [removed ? TEXTS.cart.removed(removed) : null, repriced ? TEXTS.cart.pricesUpdated : null];
       render();
+      MKCart.acknowledgePrices();
       window.addEventListener('pageshow', render);
     });
   </script>

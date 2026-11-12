@@ -957,3 +957,159 @@ img {
 .card:active {
   border-color: rgba(255, 255, 255, 0.24);
 }
+
+/* --- Orders: cart notices, checkout summary, order history --------------- */
+
+.notices:not(:empty) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+.notice {
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text);
+  border-radius: var(--radius-btn);
+  font-size: 13px;
+}
+
+.cart-item.is-blocked .cart-thumb,
+.cart-item.is-blocked .cart-name,
+.cart-item.is-blocked .cart-price {
+  opacity: 0.45;
+}
+
+.line-note {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.line-note-bad {
+  color: var(--red);
+}
+
+.btn-disabled {
+  opacity: 0.45;
+}
+
+.order-summary {
+  margin-top: 16px;
+}
+
+.summary-title {
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.summary-item {
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.textarea {
+  height: auto;
+  min-height: 84px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+
+.phone-field:has(.input[aria-invalid="true"]) {
+  border-color: var(--red);
+}
+
+.form-message {
+  margin-bottom: 12px;
+  color: var(--red);
+  font-size: 14px;
+}
+
+.submit-block .btn-secondary {
+  margin: 0 0 10px;
+}
+
+.success-number {
+  margin-top: 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 0 24px;
+}
+
+.order-card {
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.order-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.order-number {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.order-status {
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.order-status-new {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.order-status-confirmed {
+  background: rgba(61, 190, 108, 0.15);
+  color: var(--green);
+}
+
+.order-status-cancelled {
+  background: rgba(229, 72, 77, 0.12);
+  color: var(--red);
+}
+
+.order-meta {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.order-lines {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order-lines .summary-row span:first-child {
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}

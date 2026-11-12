@@ -56,11 +56,65 @@ CREATE TABLE IF NOT EXISTS favorites (
     created_at       TEXT NOT NULL,
     PRIMARY KEY (user_telegram_id, product_id)
 );
+
+-- Orders. Prices and the total are computed on the server from products;
+-- title/price snapshots keep the order readable after product edits.
+CREATE TABLE IF NOT EXISTS orders (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_telegram_id INTEGER NOT NULL CHECK (user_telegram_id > 0),
+    username         TEXT CHECK (username IS NULL OR length(username) <= 32),
+    first_name       TEXT CHECK (first_name IS NULL OR length(first_name) <= 64),
+    customer_name    TEXT NOT NULL CHECK (length(customer_name) BETWEEN 2 AND 100),
+    phone            TEXT NOT NULL CHECK (length(phone) = 13),
+    city             TEXT NOT NULL CHECK (length(city) BETWEEN 2 AND 100),
+    delivery_point   TEXT NOT NULL CHECK (length(delivery_point) BETWEEN 1 AND 200),
+    comment          TEXT NOT NULL DEFAULT '' CHECK (length(comment) <= 500),
+    status           TEXT NOT NULL DEFAULT 'new'
+                     CHECK (status IN ('new', 'confirmed', 'cancelled')),
+    total            INTEGER NOT NULL CHECK (total >= 0),
+    notified         INTEGER NOT NULL DEFAULT 0 CHECK (notified IN (0, 1)),
+    notify_attempts  INTEGER NOT NULL DEFAULT 0 CHECK (notify_attempts >= 0),
+    idempotency_key  TEXT NOT NULL CHECK (length(idempotency_key) BETWEEN 16 AND 64),
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL,
+    UNIQUE (user_telegram_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders (user_telegram_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status, created_at);
+
+CREATE TABLE IF NOT EXISTS order_items (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id       INTEGER NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+    product_id     TEXT NOT NULL,  -- no FK: the order outlives a deleted product
+    title_snapshot TEXT NOT NULL,
+    size           TEXT NOT NULL CHECK (length(size) <= 10),
+    qty            INTEGER NOT NULL CHECK (qty BETWEEN 1 AND 10),
+    price_snapshot INTEGER NOT NULL CHECK (price_snapshot >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items (order_id);
+
+-- Bot notification of one order to one admin. orders.notified is 1 once every
+-- row of the order is 'sent'; a failure for one admin never blocks the others.
+CREATE TABLE IF NOT EXISTS order_notifications (
+    order_id        INTEGER NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+    admin_id        INTEGER NOT NULL CHECK (admin_id > 0),
+    status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+    attempts        INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    next_attempt_at TEXT NOT NULL,
+    last_error      TEXT CHECK (last_error IS NULL OR length(last_error) <= 40),
+    sent_at         TEXT,
+    PRIMARY KEY (order_id, admin_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_notifications_due
+    ON order_notifications (status, next_attempt_at);
 """
 
 # Tables created after the first release. An existing database that lacks one
 # of them (or an ADDED_COLUMNS column) is backed up before init_db changes it.
-ADDED_TABLES = ("favorites",)
+ADDED_TABLES = ("favorites", "orders", "order_items", "order_notifications")
 
 
 _APOSTROPHES = re.compile(r"[’ʼ`´‘]")

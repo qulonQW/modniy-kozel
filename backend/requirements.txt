@@ -2,7 +2,8 @@ fastapi==0.162.3
 uvicorn==0.54.0
 pydantic==2.14.3
 python-multipart==0.0.33
-
-# tests only (httpx is required by fastapi.testclient)
-pytest==9.2.0
+# Bot API calls (new-order notifications); also used by fastapi.testclient
 httpx==0.28.1
+
+# tests only
+pytest==9.2.0

@@ -231,3 +231,155 @@ class AdminProduct(BaseModel):
 class AdminProductList(BaseModel):
     items: list[AdminProduct]
     total: int
+
+
+# --- orders -------------------------------------------------------------------
+
+ORDER_STATUSES = ("new", "confirmed", "cancelled")
+OrderStatus = Literal["new", "confirmed", "cancelled"]
+MAX_ORDER_LINES = 20
+MAX_LINE_QTY = 10
+
+# Control characters (except newline in the comment) are rejected outright.
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f  ]")
+_PHONE_CHARS = re.compile(r"^[\d\s()+-]{9,20}$")
+
+
+def clean_line(value: str, min_len: int, max_len: int, name: str) -> str:
+    """Single-line text: control characters rejected, whitespace collapsed."""
+    if _CONTROL.search(value) or "\n" in value:
+        raise ValueError(f"{name}: invalid characters")
+    value = " ".join(value.split())
+    if not min_len <= len(value) <= max_len:
+        raise ValueError(f"{name}: {min_len}..{max_len} characters")
+    return value
+
+
+def normalize_phone(raw: str) -> str:
+    """Ukrainian number in any common spelling -> +380XXXXXXXXX.
+
+    Accepts +380 50 123 45 67, 380501234567, 0501234567, 501234567 (the
+    storefront shows a fixed +380 prefix and sends the 9 digits)."""
+    if not _PHONE_CHARS.match(raw):
+        raise ValueError("phone: invalid characters")
+    digits = re.sub(r"\D", "", raw)
+    if digits.startswith("380") and len(digits) == 12:
+        rest = digits[3:]
+    elif digits.startswith("0") and len(digits) == 10:
+        rest = digits[1:]
+    else:
+        rest = digits
+    if len(rest) != 9 or rest[0] == "0":
+        raise ValueError("phone: expected a Ukrainian number like +380 50 123 45 67")
+    return "+380" + rest
+
+
+class OrderItemIn(BaseModel):
+    """Unknown fields (e.g. a client-sent price) are ignored, never used."""
+
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    product_id: ProductId
+    size: Annotated[str, Field(max_length=10)] = ""
+    qty: Annotated[int, Field(ge=1, le=MAX_LINE_QTY)]
+
+
+class OrderCreate(BaseModel):
+    """POST /api/orders. The user comes from initData; prices and the total
+    come from the database. A client "price"/"total" is ignored.
+
+    expected_total (optional) is only a consistency check: if it differs from
+    the server's total the order is not created and the client is shown the
+    current total first."""
+
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    items: list[OrderItemIn] = Field(min_length=1, max_length=MAX_ORDER_LINES)
+    customer_name: str
+    phone: str
+    city: str
+    delivery_point: str
+    comment: str = ""
+    idempotency_key: Annotated[str, Field(pattern=r"^[A-Za-z0-9-]{16,64}$")]
+    expected_total: Annotated[int, Field(ge=0, le=100_000_000)] | None = None
+
+    @field_validator("customer_name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        return clean_line(v, 2, 100, "customer_name")
+
+    @field_validator("city")
+    @classmethod
+    def _city(cls, v: str) -> str:
+        return clean_line(v, 2, 100, "city")
+
+    @field_validator("delivery_point")
+    @classmethod
+    def _point(cls, v: str) -> str:
+        return clean_line(v, 1, 200, "delivery_point")
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, v: str) -> str:
+        return normalize_phone(v)
+
+    @field_validator("comment")
+    @classmethod
+    def _comment(cls, v: str) -> str:
+        v = v.replace("\r\n", "\n").replace("\r", "\n")
+        if _CONTROL.search(v):
+            raise ValueError("comment: invalid characters")
+        v = "\n".join(" ".join(line.split()) for line in v.strip().split("\n"))
+        if len(v) > 500:
+            raise ValueError("comment: at most 500 characters")
+        return v
+
+
+class OrderItemOut(BaseModel):
+    product_id: str
+    title: str
+    size: str
+    qty: int
+    price: int
+
+
+class OrderOut(BaseModel):
+    """The shopper's own order (GET /api/orders/mine, POST /api/orders)."""
+
+    id: int
+    status: str
+    total: int
+    created_at: str
+    customer_name: str
+    phone: str
+    city: str
+    delivery_point: str
+    comment: str
+    items: list[OrderItemOut]
+
+
+class OrderNotificationOut(BaseModel):
+    admin_id: int
+    status: str
+    attempts: int
+    last_error: str | None
+    sent_at: str | None
+
+
+class AdminOrder(OrderOut):
+    user_telegram_id: int
+    username: str | None
+    first_name: str | None
+    notified: bool
+    notify_attempts: int
+    updated_at: str
+    notifications: list[OrderNotificationOut] = []
+
+
+class AdminOrderList(BaseModel):
+    items: list[AdminOrder]
+    total: int
+
+
+class OrderStatusUpdate(StrictModel):
+    status: OrderStatus

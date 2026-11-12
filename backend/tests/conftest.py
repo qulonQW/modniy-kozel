@@ -26,9 +26,32 @@ def settings(tmp_path: Path) -> Settings:
     )
 
 
+class FakeNotifier:
+    """Stands in for the Bot API: records messages, fails for chosen chats."""
+
+    def __init__(self) -> None:
+        self.sent: list[tuple[int, str]] = []
+        self.calls = 0
+        self.fail_for: dict[int, str] = {}  # chat_id -> error code
+
+    def send(self, chat_id: int, text: str) -> str | None:
+        self.calls += 1
+        if chat_id in self.fail_for:
+            return self.fail_for[chat_id]
+        self.sent.append((chat_id, text))
+        return None
+
+
 @pytest.fixture
-def client(settings: Settings):
-    with TestClient(create_app(settings)) as c:
+def notifier() -> FakeNotifier:
+    return FakeNotifier()
+
+
+@pytest.fixture
+def client(settings: Settings, notifier: FakeNotifier):
+    app = create_app(settings)
+    app.state.notifier = notifier  # never call the real Telegram API in tests
+    with TestClient(app) as c:
         yield c
 
 

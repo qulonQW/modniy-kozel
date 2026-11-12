@@ -18,18 +18,85 @@
       <a class="icon-btn icon-btn-end" href="./cart.html" data-cart-link aria-label="Кошик"></a>
     </header>
 
-    <main>
-      <div class="empty">
-        <h2 class="empty-title">Замовлень поки немає</h2>
-        <a class="btn btn-inline" href="./catalog.html">До каталогу</a>
-      </div>
+    <main class="section">
+      <div id="orders" aria-live="polite"><p class="empty-note">Завантаження…</p></div>
     </main>
   </div>
 
   <nav data-nav="orders" aria-label="Головне меню"></nav>
 
+  <script src="./texts.js"></script>
   <script src="./products.js"></script>
   <script src="./cart.js"></script>
   <script src="./app.js"></script>
+  <script>
+    const mount = document.getElementById('orders');
+
+    function showEmpty(title, note) {
+      mount.className = 'empty';
+      mount.replaceChildren(
+        MK.el('h2', { class: 'empty-title' }, title),
+        note ? MK.el('p', { class: 'summary-note' }, note) : null,
+        MK.el('a', { class: 'btn btn-inline', href: './catalog.html' }, 'До каталогу')
+      );
+    }
+
+    function showError() {
+      const retry = MK.el('button', { class: 'btn btn-inline', type: 'button' }, 'Спробувати ще раз');
+      retry.addEventListener('click', load);
+      mount.className = 'empty';
+      mount.replaceChildren(
+        MK.el('h2', { class: 'empty-title' }, TEXTS.orders.loadError),
+        MK.el('p', { class: 'summary-note' }, 'Перевірте з’єднання з інтернетом і спробуйте ще раз.'),
+        retry
+      );
+    }
+
+    const formatDate = (iso) => {
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
+    };
+
+    function orderCard(o) {
+      const status = ['new', 'confirmed', 'cancelled'].includes(o.status) ? o.status : 'new';
+      return MK.el('article', { class: 'order-card' },
+        MK.el('div', { class: 'order-head' },
+          MK.el('h2', { class: 'order-number' }, TEXTS.orders.number(o.id)),
+          MK.el('span', { class: `order-status order-status-${status}` }, TEXTS.orderStatus[status])),
+        MK.el('p', { class: 'order-meta' }, formatDate(o.created_at)),
+        MK.el('ul', { class: 'order-lines' }, ...o.items.map((i) => MK.el('li', { class: 'summary-row' },
+          MK.el('span', null, `${i.title}${i.size ? `, ${TEXTS.orders.size(i.size)}` : ''}${i.qty > 1 ? ` × ${i.qty}` : ''}`),
+          MK.el('span', null, MK.formatPrice(i.qty * i.price))))),
+        MK.el('p', { class: 'order-meta' }, TEXTS.orders.delivery(o.city, o.delivery_point)),
+        MK.el('div', { class: 'summary-row summary-total' },
+          MK.el('span', null, TEXTS.checkout.total), MK.el('span', null, MK.formatPrice(o.total))));
+    }
+
+    async function load() {
+      mount.className = '';
+      mount.replaceChildren(MK.el('p', { class: 'empty-note' }, 'Завантаження…'));
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/orders/mine`, { headers: MK.authHeaders(), cache: 'no-store' });
+        if (res.status === 401) {
+          showEmpty(TEXTS.orders.notInTelegram, TEXTS.orders.notInTelegramNote);
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const orders = await res.json();
+        if (!Array.isArray(orders)) throw new Error('unexpected response');
+        if (!orders.length) {
+          showEmpty(TEXTS.orders.empty);
+          return;
+        }
+        mount.className = 'order-list';
+        mount.replaceChildren(...orders.map(orderCard));
+      } catch (err) {
+        console.warn('Orders could not be loaded:', err.name);
+        showError();
+      }
+    }
+
+    load();
+  </script>
 </body>
 </html>

@@ -1,7 +1,8 @@
 // localStorage-backed cart.
-// Cart lines are { id, size, qty }; product details are looked up from PRODUCTS
-// (loaded from the API), so a price change in the admin applies to items
-// already in the cart.
+// Cart lines are { id, size, qty, price }; product details are looked up from
+// PRODUCTS (loaded from the API), so the current price always applies. "price"
+// is the price when the line was added, only used to tell the shopper that it
+// changed. The server re-prices every order anyway.
 
 function readList(key) {
   try {
@@ -22,16 +23,23 @@ function writeList(key, list) {
 
 const MKCart = {
   KEY: 'mk_cart',
+  MAX_QTY: 10,
 
   read() {
-    return readList(this.KEY);
+    return readList(this.KEY).filter(
+      (l) => l && typeof l.id === 'string' && typeof l.size === 'string' && Number.isInteger(l.qty) && l.qty > 0
+    );
   },
 
-  add(id, size) {
+  add(id, size, price) {
     const lines = this.read();
     const line = lines.find((l) => l.id === id && l.size === size);
-    if (line) line.qty += 1;
-    else lines.push({ id, size, qty: 1 });
+    if (line) {
+      line.qty = Math.min(line.qty + 1, this.MAX_QTY);
+      line.price = price;
+    } else {
+      lines.push({ id, size, qty: 1, price });
+    }
     writeList(this.KEY, lines);
   },
 
@@ -43,12 +51,51 @@ const MKCart = {
     writeList(this.KEY, []);
   },
 
-  // Lines joined with their product. Lines for products no longer in the
-  // catalogue are skipped so totals and counts stay consistent.
+  // Every line joined with its product and checked:
+  //   status 'ok' | 'out_of_stock' | 'invalid_size' | 'missing' (not published any more)
+  //   oldPrice: the price when added, if it differs from the current one.
+  review() {
+    return this.read().map((line) => {
+      const product = PRODUCTS.find((p) => p.id === line.id);
+      let status = 'ok';
+      if (!product) status = 'missing';
+      else if (!product.inStock) status = 'out_of_stock';
+      else if (product.sizes.length ? !product.sizes.includes(line.size) : line.size !== '') status = 'invalid_size';
+      const oldPrice =
+        product && typeof line.price === 'number' && line.price !== product.price ? line.price : null;
+      return { ...line, qty: Math.min(line.qty, this.MAX_QTY), product, status, oldPrice };
+    });
+  },
+
+  // Drops lines whose product is gone; returns how many were dropped.
+  // Only call after PRODUCTS loaded successfully.
+  pruneMissing() {
+    const lines = this.review();
+    const kept = lines.filter((l) => l.status !== 'missing');
+    if (kept.length !== lines.length) {
+      writeList(this.KEY, kept.map(({ id, size, qty, price }) => ({ id, size, qty, price })));
+    }
+    return lines.length - kept.length;
+  },
+
+  // Remembers the current prices once the shopper has seen the change.
+  acknowledgePrices() {
+    writeList(
+      this.KEY,
+      this.review()
+        .filter((l) => l.product)
+        .map(({ id, size, qty, product }) => ({ id, size, qty, price: product.price }))
+    );
+  },
+
+  // Lines that can be ordered right now.
+  getOrderable() {
+    return this.review().filter((l) => l.status === 'ok');
+  },
+
+  // Lines whose product is still in the catalogue (shown in the cart).
   getItems() {
-    return this.read()
-      .map((line) => ({ ...line, product: PRODUCTS.find((p) => p.id === line.id) }))
-      .filter((line) => line.product);
+    return this.review().filter((l) => l.product);
   },
 
   getCount() {
@@ -56,6 +103,6 @@ const MKCart = {
   },
 
   getTotal() {
-    return this.getItems().reduce((sum, line) => sum + line.qty * line.product.price, 0);
+    return this.getOrderable().reduce((sum, line) => sum + line.qty * line.product.price, 0);
   },
 };

@@ -1,4 +1,4 @@
-// Admin panel for products. Vanilla JS, served by the backend at /admin/.
+// Admin panel for products and orders. Vanilla JS, served by the backend at /admin/.
 //
 // Auth: every request carries Telegram.WebApp.initData in X-Telegram-Init-Data;
 // the server verifies it. Nothing is persisted in browser storage.
@@ -16,7 +16,10 @@
   const tg = window.Telegram && window.Telegram.WebApp;
   const initData = (tg && tg.initData) || '';
 
-  const STATUS_LABELS = { draft: 'Чернетка', published: 'Опубліковано', hidden: 'Приховано' };
+  const STATUS_LABELS = {
+    draft: 'Чернетка', published: 'Опубліковано', hidden: 'Приховано',
+    new: 'Нове', confirmed: 'Підтверджене', cancelled: 'Скасоване',
+  };
   const REASON_LABELS = {
     caption_not_first: 'Підпис був не на першому фото альбому — перевірте, чи всі фото від цього товару',
     no_drop_price: 'У пості немає дроп-ціни — вкажіть ціни вручну',
@@ -234,16 +237,29 @@
 
   const form = $('edit-form');
 
+  // Views: 'list' and 'orders' are tabs; 'edit' and 'order' are their detail pages.
+  const VIEWS = { list: 'list-view', edit: 'edit-view', orders: 'orders-view', order: 'order-view' };
+  let currentView = 'list';
+
   function showView(name) {
-    const editing = name === 'edit';
-    if (editing) state.listScroll = window.scrollY;
-    $('list-view').hidden = editing;
-    $('edit-view').hidden = !editing;
+    const detail = name === 'edit' || name === 'order';
+    if (detail && !['edit', 'order'].includes(currentView)) state.listScroll = window.scrollY;
+    currentView = name;
+    for (const [view, id] of Object.entries(VIEWS)) $(id).hidden = view !== name;
+    $('tabs').hidden = detail;
+    document.querySelectorAll('.tab').forEach((t) => {
+      t.setAttribute('aria-pressed', String((t.dataset.tab === 'orders') === (name === 'orders' || name === 'order')));
+    });
     if (tg && initData && tg.BackButton) {
-      if (editing) tg.BackButton.show();
+      if (detail) tg.BackButton.show();
       else tg.BackButton.hide();
     }
-    window.scrollTo(0, editing ? 0 : state.listScroll);
+    window.scrollTo(0, detail ? 0 : state.listScroll);
+  }
+
+  function goBack() {
+    if (currentView === 'order') backToOrders();
+    else backToList();
   }
 
   async function openEditor(id) {
@@ -491,6 +507,168 @@
     if (files.length) toast('Фото завантажено');
   }
 
+  // ---------------------------------------------------------------- orders
+
+  const orders = { items: [], total: 0, status: '', current: null, request: 0 };
+  const NOTIFY_LABELS = { sent: 'надіслано', pending: 'очікує', failed: 'не доставлено' };
+
+  const formatDate = (iso) => new Date(iso).toLocaleString('uk-UA', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+
+  async function loadOrders(append = false) {
+    const requestId = ++orders.request;
+    const params = new URLSearchParams({ limit: PAGE_SIZE, offset: append ? orders.items.length : 0 });
+    if (orders.status) params.set('status', orders.status);
+    const data = await run(() => api('GET', `/orders?${params}`), $('orders-more'));
+    if (!data || requestId !== orders.request) return;
+    orders.items = append ? orders.items.concat(data.items) : data.items;
+    orders.total = data.total;
+    renderOrders();
+    refreshNewCount();
+  }
+
+  async function refreshNewCount() {
+    const data = await api('GET', '/orders?status=new&limit=1').catch(() => null);
+    const badge = $('new-orders');
+    badge.hidden = !data || data.total === 0;
+    badge.textContent = data ? String(data.total) : '';
+  }
+
+  function orderRow(o) {
+    const count = o.items.reduce((sum, i) => sum + i.qty, 0);
+    return h('li', null, h('button', { type: 'button', className: 'order-row', onclick: () => openOrder(o.id) },
+      h('div', { className: 'order-row-head' },
+        h('span', null, `№ ${o.id} · ${formatPrice(o.total)}`),
+        statusBadge(o.status)),
+      h('div', { className: 'row-meta' },
+        h('span', null, formatDate(o.created_at)),
+        h('span', null, o.customer_name),
+        h('span', null, `${count} шт.`),
+        o.notified ? null : h('span', { className: 'flag' }, '⚠ сповіщення не доставлено'))));
+  }
+
+  function renderOrders() {
+    $('order-list').replaceChildren(...orders.items.map(orderRow));
+    if (!orders.items.length) $('order-list').append(h('li', { className: 'empty' }, 'Замовлень немає.'));
+    $('orders-summary').textContent = `Знайдено: ${orders.total}` +
+      (orders.items.length < orders.total ? ` · показано ${orders.items.length}` : '');
+    $('orders-more').hidden = orders.items.length >= orders.total;
+  }
+
+  async function openOrder(id) {
+    const order = await run(() => api('GET', `/orders/${id}`));
+    if (!order) return;
+    orders.current = order;
+    renderOrder();
+    showView('order');
+  }
+
+  function dl(...pairs) {
+    return h('dl', { className: 'detail' },
+      ...pairs.filter(Boolean).map(([term, value]) => [h('dt', null, term), h('dd', null, value)]));
+  }
+
+  function buyerLink(o) {
+    const name = o.first_name || 'Покупець';
+    const parts = [];
+    if (o.username) {
+      const url = `https://t.me/${encodeURIComponent(o.username)}`;
+      parts.push(h('a', {
+        href: url, target: '_blank', rel: 'noopener',
+        onclick: (e) => {
+          if (tg && initData && tg.openTelegramLink) {
+            e.preventDefault();
+            tg.openTelegramLink(url);
+          }
+        },
+      }, `${name} (@${o.username})`));
+    } else {
+      parts.push(h('a', { href: `tg://user?id=${encodeURIComponent(o.user_telegram_id)}` }, name));
+    }
+    parts.push(h('span', { className: 'muted' }, ` · Telegram ID ${o.user_telegram_id}`));
+    return parts;
+  }
+
+  function renderOrder() {
+    const o = orders.current;
+    $('order-title').textContent = `Замовлення № ${o.id}`;
+    const rows = o.items.map((i) => h('tr', null,
+      h('td', null, `${i.title}${i.size ? `, розмір ${i.size}` : ''} × ${i.qty}`,
+        h('div', { className: 'muted' }, `ID ${i.product_id} · ${formatPrice(i.price)} за шт.`)),
+      h('td', null, formatPrice(i.qty * i.price))));
+    rows.push(h('tr', { className: 'total' }, h('td', null, 'Разом'), h('td', null, formatPrice(o.total))));
+    $('order-detail').replaceChildren(
+      dl(
+        ['Статус', statusBadge(o.status)],
+        ['Створено', formatDate(o.created_at)],
+        ['Покупець у Telegram', buyerLink(o)],
+        ['Ім\u2019я в замовленні', o.customer_name],
+        ['Телефон', h('a', { href: `tel:${o.phone}` }, o.phone)],
+        ['Місто', o.city],
+        ['Відділення / поштомат', o.delivery_point],
+        o.comment ? ['Коментар', o.comment] : null,
+      ),
+      h('table', { className: 'items-table' }, h('tbody', null, rows)),
+    );
+    $('order-status').value = o.status;
+    const notes = o.notifications.length ? o.notifications : [null];
+    $('notify-list').replaceChildren(...notes.map((n) => (n
+      ? h('li', { className: `notify-${n.status}` },
+        `Адмін ${n.admin_id}: ${NOTIFY_LABELS[n.status] || n.status}` +
+        (n.attempts ? ` (спроб: ${n.attempts})` : '') +
+        (n.last_error && n.status !== 'sent' ? ` · ${n.last_error}` : ''))
+      : h('li', { className: 'muted' }, 'Адмінів для сповіщення не було.'))));
+  }
+
+  function refreshOrderItem(order) {
+    const index = orders.items.findIndex((i) => i.id === order.id);
+    if (index >= 0) orders.items[index] = order;
+  }
+
+  async function saveOrderStatus(event) {
+    const o = orders.current;
+    const status = $('order-status').value;
+    if (status === o.status) {
+      toast('Змін немає');
+      return;
+    }
+    const updated = await run(() => api('PATCH', `/orders/${o.id}`, { status }), event.currentTarget);
+    if (!updated) return;
+    orders.current = updated;
+    refreshOrderItem(updated);
+    renderOrder();
+    refreshNewCount();
+    toast('Статус збережено');
+  }
+
+  async function resendOrder(event) {
+    const o = orders.current;
+    const updated = await run(() => api('POST', `/orders/${o.id}/resend`), event.currentTarget);
+    if (!updated) return;
+    // The send runs right after the response; re-read to show the result.
+    const fresh = await run(() => api('GET', `/orders/${o.id}`));
+    orders.current = fresh || updated;
+    refreshOrderItem(orders.current);
+    renderOrder();
+    toast(orders.current.notified ? 'Сповіщення надіслано' : 'Надсилання поставлено в чергу', !orders.current.notified);
+  }
+
+  function backToOrders() {
+    showView('orders');
+    renderOrders();
+  }
+
+  function switchTab(tab) {
+    if (tab === 'orders') {
+      showView('orders');
+      loadOrders();
+    } else {
+      showView('list');
+      renderList();
+    }
+  }
+
   // ------------------------------------------------------------ navigation
 
   function backToList() {
@@ -511,7 +689,7 @@
       tg.ready();
       tg.expand();
       document.documentElement.classList.add('in-telegram');
-      tg.BackButton.onClick(backToList);
+      tg.BackButton.onClick(goBack);
     } else {
       const notice = $('env-notice');
       notice.textContent = 'Відкрито поза Telegram — працює лише в режимі розробки (DEV_ADMIN_ID).';
@@ -548,7 +726,16 @@
     $('delete-product').addEventListener('click', deleteProduct);
     $('upload').addEventListener('change', uploadFiles);
 
+    document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+    $('orders-status').addEventListener('change', (e) => { orders.status = e.target.value; loadOrders(); });
+    $('orders-refresh').addEventListener('click', () => loadOrders());
+    $('orders-more').addEventListener('click', () => loadOrders(true));
+    $('order-back').addEventListener('click', backToOrders);
+    $('order-save').addEventListener('click', saveOrderStatus);
+    $('order-resend').addEventListener('click', resendOrder);
+
     loadList();
+    refreshNewCount();
   }
 
   init();

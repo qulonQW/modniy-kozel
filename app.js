@@ -389,6 +389,7 @@ const MK = (() => {
   return {
     el,
     icon,
+    inTelegram,
     authHeaders,
     notify,
     favorites,

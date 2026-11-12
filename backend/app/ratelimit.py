@@ -18,6 +18,8 @@ LIMITS = {
     "upload": (20, 60.0),
     "catalog": (240, 60.0),  # public search: typing + "show more"
     "favorites": (120, 60.0),
+    "orders": (10, 60.0),  # POST /api/orders per IP
+    "orders_read": (60, 60.0),
 }
 
 
