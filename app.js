@@ -286,11 +286,29 @@ const MK = (() => {
     });
   }
 
+  function rememberFavorites() {
+    sessionSet('mk_fav_ids', favorites.enabled ? JSON.stringify([...favorites.ids]) : null);
+  }
+
   async function loadFavorites() {
+    // Hearts from the last page of this session, shown before the request returns.
+    try {
+      const cached = JSON.parse(sessionGet('mk_fav_ids'));
+      if (Array.isArray(cached)) {
+        favorites.ids = new Set(cached.filter((id) => typeof id === 'string'));
+        favorites.enabled = true;
+        refreshFavorites();
+      }
+    } catch {
+      // no cache
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/api/favorites`, { headers: authHeaders(), cache: 'no-store' });
       if (res.status === 401) {
         favorites.state = 'unavailable';
+        favorites.enabled = false;
+        favorites.ids = new Set();
+        rememberFavorites();
         return false;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -300,6 +318,7 @@ const MK = (() => {
       favorites.ids = new Set(favorites.products.map((p) => p.id));
       favorites.enabled = true;
       favorites.state = 'ok';
+      rememberFavorites();
       return true;
     } catch (err) {
       console.warn('Favorites could not be loaded:', err.name);
@@ -313,6 +332,7 @@ const MK = (() => {
   function setFavorite(id, on) {
     if (on) favorites.ids.add(id);
     else favorites.ids.delete(id);
+    rememberFavorites();
     refreshFavorites();
     document.dispatchEvent(new CustomEvent('mk:favorite', { detail: { id, on } }));
   }
@@ -354,22 +374,51 @@ const MK = (() => {
     });
   }
 
+  // Per-session cache for things that are re-checked on every page: the
+  // page draws them at once from here, then corrects them from the server.
+  // UI only: the server still checks admin rights and favorites itself.
+  function sessionGet(key) {
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function sessionSet(key, value) {
+    try {
+      if (value === null) sessionStorage.removeItem(key);
+      else sessionStorage.setItem(key, value);
+    } catch {
+      // storage unavailable: everything still works, just without the head start
+    }
+  }
+
   // "Адмінка" link in the page header, left of the cart icon, only for users
   // the backend recognises as admins (same initData check as /api/admin).
   // Any failure just leaves the link out; shoppers never see it.
   async function mountAdminLink() {
     const header = document.querySelector('.header');
     if (!header) return;
+    let link = null;
+    const show = () => {
+      if (link) return;
+      link = el('a', { class: 'admin-link', href: './admin/' }, 'Адмінка');
+      const actions = header.querySelector('.header-actions');
+      if (actions) actions.prepend(link);
+      else header.append(link);
+    };
+    if (sessionGet('mk_is_admin') === '1') show();
     try {
       const res = await fetch(`${API_BASE_URL}/api/me`, { headers: authHeaders(), cache: 'no-store' });
-      if (!res.ok || !(await res.json()).is_admin) return;
+      if (!res.ok) return;
+      const isAdmin = Boolean((await res.json()).is_admin);
+      sessionSet('mk_is_admin', isAdmin ? '1' : '0');
+      if (isAdmin) show();
+      else if (link) link.remove();
     } catch {
-      return;
+      // keep whatever is shown; the next page asks again
     }
-    const link = el('a', { class: 'admin-link', href: './admin/' }, 'Адмінка');
-    const actions = header.querySelector('.header-actions');
-    if (actions) actions.prepend(link);
-    else header.append(link);
   }
 
   setupTelegram();

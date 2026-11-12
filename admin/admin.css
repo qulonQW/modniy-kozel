@@ -283,7 +283,7 @@ main {
 
 /* --- Tabs and orders ------------------------------------------------------ */
 
-.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tabs { display: flex; gap: 8px; max-width: var(--max-width); margin: 12px auto; padding: 0 var(--gutter); }
 .tab {
   flex: 1;
   min-height: 40px;
@@ -297,6 +297,7 @@ main {
   font-weight: 500;
 }
 .tab[aria-pressed='true'] { background: var(--text); border-color: var(--text); color: var(--bg); }
+.tab-exit { flex: none; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .tab-count {
   display: inline-block;
   min-width: 18px;

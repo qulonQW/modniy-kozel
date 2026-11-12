@@ -7,7 +7,8 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap">
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap"></noscript>
   <link rel="stylesheet" href="./style.css">
   <link rel="icon" type="image/png" href="./public/images/logo/logo-mark.png">
 </head>
@@ -83,7 +84,6 @@
 
   <div class="page success" id="success" hidden>
     <h1 class="success-title" data-text="confirmation.title"></h1>
-    <p class="success-number" id="order-number"></p>
     <p class="success-note" data-text="confirmation.message"></p>
     <div class="success-actions">
       <a class="btn" href="./orders.html" data-text="confirmation.toOrders"></a>
@@ -219,7 +219,6 @@
       MKCart.clear();
       try { sessionStorage.removeItem(KEY_STORAGE); } catch { /* ignore */ }
       MK.refreshCartBadges();
-      document.getElementById('order-number').textContent = TEXTS.confirmation.orderNumber(order.id);
       document.getElementById('checkout').hidden = true;
       document.getElementById('success').hidden = false;
       window.scrollTo(0, 0);

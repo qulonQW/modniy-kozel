@@ -50,12 +50,12 @@ def test_browse_favorite_cart_order_admin(client, db, notifier):
     created = client.post("/api/orders", json=body, headers=shopper)
     assert created.status_code == 201, created.text
     again = client.post("/api/orders", json=body, headers=shopper)
-    assert again.status_code == 200 and again.json()["id"] == created.json()["id"]
-    order_id = created.json()["id"]
-    assert created.json()["total"] == total
+    assert again.status_code == 200 and again.json() == created.json()
+    assert created.json()["total"] == total and "id" not in created.json()  # no order number for shoppers
+    order_id = db.execute("SELECT id FROM orders").fetchone()[0]
 
     mine = client.get("/api/orders/mine", headers=shopper).json()
-    assert [(o["id"], o["status"]) for o in mine] == [(order_id, "new")]
+    assert [(o["created_at"], o["status"]) for o in mine] == [(created.json()["created_at"], "new")]
 
     # 5. admins were notified (both), once
     assert sorted(chat for chat, _ in notifier.sent) == [111, 222]

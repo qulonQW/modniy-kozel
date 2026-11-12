@@ -247,19 +247,19 @@
     currentView = name;
     for (const [view, id] of Object.entries(VIEWS)) $(id).hidden = view !== name;
     $('tabs').hidden = detail;
-    document.querySelectorAll('.tab').forEach((t) => {
+    document.querySelectorAll('.tab[data-tab]').forEach((t) => {
       t.setAttribute('aria-pressed', String((t.dataset.tab === 'orders') === (name === 'orders' || name === 'order')));
     });
-    if (tg && initData && tg.BackButton) {
-      if (detail) tg.BackButton.show();
-      else tg.BackButton.hide();
-    }
+    // Telegram's Back button is always there: on a detail page it goes back
+    // to the list, on a list it leaves the admin for the shop.
+    if (tg && initData && tg.BackButton) tg.BackButton.show();
     window.scrollTo(0, detail ? 0 : state.listScroll);
   }
 
   function goBack() {
     if (currentView === 'order') backToOrders();
-    else backToList();
+    else if (currentView === 'edit') backToList();
+    else location.href = '../index.html';
   }
 
   async function openEditor(id) {
@@ -690,6 +690,7 @@
       tg.expand();
       document.documentElement.classList.add('in-telegram');
       tg.BackButton.onClick(goBack);
+      tg.BackButton.show();
     } else {
       const notice = $('env-notice');
       notice.textContent = 'Відкрито поза Telegram — працює лише в режимі розробки (DEV_ADMIN_ID).';
@@ -726,7 +727,7 @@
     $('delete-product').addEventListener('click', deleteProduct);
     $('upload').addEventListener('change', uploadFiles);
 
-    document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+    document.querySelectorAll('.tab[data-tab]').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
     $('orders-status').addEventListener('change', (e) => { orders.status = e.target.value; loadOrders(); });
     $('orders-refresh').addEventListener('click', () => loadOrders());
     $('orders-more').addEventListener('click', () => loadOrders(true));

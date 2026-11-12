@@ -23,7 +23,6 @@ const TEXTS = {
   confirmation: {
     title: 'Заявку отримано',
     message: "Дякуємо! Заявку отримано, менеджер зв'яжеться з вами для підтвердження.",
-    orderNumber: (id) => `Номер замовлення: № ${id}`,
     toOrders: 'Мої замовлення',
     continue: 'Продовжити покупки',
   },
@@ -65,7 +64,7 @@ const TEXTS = {
     notInTelegram: 'Ваші замовлення видно лише в Telegram',
     notInTelegramNote: 'Відкрийте магазин через бота.',
     loadError: 'Не вдалося завантажити замовлення',
-    number: (id) => `№ ${id}`,
+    date: (date) => `Замовлення від ${date}`,
     size: (size) => `розмір ${size}`,
     delivery: (city, point) => `${city}, ${point}`,
   },

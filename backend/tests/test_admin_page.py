@@ -33,3 +33,10 @@ def test_admin_html_has_no_inline_scripts_or_handlers():
     scripts = re.findall(r"<script([^>]*)>(.*?)</script>", html, re.S)
     assert all("src=" in attrs and not body.strip() for attrs, body in scripts)
     assert not re.search(r"\son[a-z]+=", html)
+
+
+def test_admin_has_a_way_back_to_the_shop():
+    html = (ADMIN_DIR / "index.html").read_text(encoding="utf-8")
+    assert 'href="../index.html"' in html and "Магазин" in html
+    js = (ADMIN_DIR / "admin.js").read_text(encoding="utf-8")
+    assert "location.href = '../index.html'" in js  # Telegram Back button on the lists

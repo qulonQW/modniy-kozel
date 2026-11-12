@@ -346,9 +346,11 @@ class OrderItemOut(BaseModel):
 
 
 class OrderOut(BaseModel):
-    """The shopper's own order (GET /api/orders/mine, POST /api/orders)."""
+    """The shopper's own order (GET /api/orders/mine, POST /api/orders).
 
-    id: int
+    No order id on purpose: ids are sequential and would tell shoppers how
+    many orders the shop gets. Admins see it (AdminOrder) and in the bot."""
+
     status: str
     total: int
     created_at: str
@@ -369,6 +371,7 @@ class OrderNotificationOut(BaseModel):
 
 
 class AdminOrder(OrderOut):
+    id: int
     user_telegram_id: int
     username: str | None
     first_name: str | None

@@ -39,6 +39,11 @@ def post(client, body, user=ALICE):
     return client.post("/api/orders", json=body, headers=as_user(user))
 
 
+def last_order_id(db) -> int:
+    """Shopper responses have no order id; tests read it from the database."""
+    return db.execute("SELECT MAX(id) FROM orders").fetchone()[0]
+
+
 @pytest.fixture
 def shop(db):
     insert_product(db, "shoe-1", title="Кросівки", price_retail=2500, sizes='["41", "42"]')
@@ -181,14 +186,25 @@ def test_same_idempotency_key_returns_the_existing_order(client, shop, notifier)
     first = post(client, body)
     second = post(client, {**body, "comment": "changed"})
     assert first.status_code == 201 and second.status_code == 200
-    assert first.json()["id"] == second.json()["id"]
+    assert first.json() == second.json()  # the same order comes back
     assert shop.execute("SELECT COUNT(*) FROM orders").fetchone()[0] == 1
     assert len(notifier.sent) == len(ADMINS)  # no second notification
 
 
+def db_count(client) -> int:
+    from app.db import connect
+
+    conn = connect(client.app.state.settings.database_path)
+    try:
+        return conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
+    finally:
+        conn.close()
+
+
 def test_idempotency_key_is_per_user(client, shop):
     body = order_body(key="b" * 32)
-    assert post(client, body, ALICE).json()["id"] != post(client, body, BOB).json()["id"]
+    assert post(client, body, ALICE).status_code == 201 and post(client, body, BOB).status_code == 201
+    assert db_count(client) == 2
 
 
 def test_users_only_see_their_own_orders(client, shop):
@@ -197,9 +213,13 @@ def test_users_only_see_their_own_orders(client, shop):
     alice = client.get("/api/orders/mine", headers=as_user(ALICE))
     assert alice.status_code == 200 and alice.headers["cache-control"] == "no-store"
     assert len(alice.json()) == 1
-    assert {o["id"] for o in alice.json()}.isdisjoint(
-        {o["id"] for o in client.get("/api/orders/mine", headers=as_user(BOB)).json()}
-    )
+    assert len(client.get("/api/orders/mine", headers=as_user(BOB)).json()) == 1
+
+
+def test_shoppers_never_see_the_order_number(client, shop):
+    created = post(client, order_body())
+    assert "id" not in created.json()
+    assert all("id" not in o for o in client.get("/api/orders/mine", headers=as_user(ALICE)).json())
 
 
 def test_user_id_in_body_is_ignored(client, shop):
@@ -226,7 +246,8 @@ def test_non_admin_cannot_use_admin_order_api(client, shop):
 
 
 def test_admin_lists_filters_and_updates(admin, shop):
-    oid = post(admin, order_body()).json()["id"]
+    post(admin, order_body())
+    oid = last_order_id(shop)
     data = admin.get("/api/admin/orders").json()
     assert data["total"] == 1
     order = data["items"][0]
@@ -248,7 +269,8 @@ def test_admin_lists_filters_and_updates(admin, shop):
 
 
 def test_every_admin_is_notified_after_commit(client, shop, notifier):
-    oid = post(client, order_body()).json()["id"]
+    post(client, order_body())
+    oid = last_order_id(shop)
     assert sorted(chat for chat, _ in notifier.sent) == list(ADMINS)
     text = notifier.sent[0][1]
     assert f"№ {oid}" in text and "+380501234567" in text and "Разом: 2 500 грн" in text
@@ -309,7 +331,8 @@ def test_retries_stop_after_max_attempts(client, shop, notifier, settings):
 
 def test_admin_resend(admin, shop, notifier):
     notifier.fail_for = {111: "http_403"}
-    oid = post(admin, order_body()).json()["id"]
+    post(admin, order_body())
+    oid = last_order_id(shop)
     notifier.fail_for = {}
     res = admin.post(f"/api/admin/orders/{oid}/resend")
     assert res.status_code == 200

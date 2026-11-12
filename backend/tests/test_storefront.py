@@ -52,3 +52,30 @@ def test_storefront_never_renders_html_strings():
         text = (REPO_DIR / name).read_text(encoding="utf-8")
         for api in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "MK.esc"):
             assert api not in text, f"{name}: {api}"
+
+
+def test_html_uses_versioned_assets_that_are_cached_forever(client):
+    import re
+
+    html = client.get("/catalog.html")
+    assert html.headers["cache-control"] == "no-cache"
+    refs = dict(re.findall(r'"\./(app\.js|style\.css|cart\.js|products\.js|texts\.js)\?v=([0-9a-f]{12})"', html.text))
+    assert {"app.js", "style.css", "products.js", "cart.js"} <= set(refs)
+    fresh = client.get(f"/app.js?v={refs['app.js']}")
+    assert fresh.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert fresh.headers["content-type"].startswith("text/javascript")
+    # an old or missing version is never cached for long
+    assert client.get("/app.js?v=000000000000").headers["cache-control"] == "no-cache"
+    assert client.get("/app.js").headers["cache-control"] == "no-cache"
+
+
+def test_unchanged_html_is_a_304(client):
+    first = client.get("/index.html")
+    again = client.get("/index.html", headers={"If-None-Match": first.headers["etag"]})
+    assert again.status_code == 304 and again.content == b""
+
+
+def test_shoppers_never_see_order_numbers():
+    for name in ("checkout.html", "orders.html", "texts.js"):
+        text = (REPO_DIR / name).read_text(encoding="utf-8")
+        assert "order.id" not in text and "o.id" not in text and "№ ${" not in text, name

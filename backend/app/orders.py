@@ -149,7 +149,7 @@ def _items(conn: sqlite3.Connection, order_ids: list[int]) -> dict[int, list[Ord
 
 def _public(row: sqlite3.Row, items: list[OrderItemOut]) -> OrderOut:
     return OrderOut(
-        id=row["id"], status=row["status"], total=row["total"], created_at=row["created_at"],
+        status=row["status"], total=row["total"], created_at=row["created_at"],
         customer_name=row["customer_name"], phone=row["phone"], city=row["city"],
         delivery_point=row["delivery_point"], comment=row["comment"], items=items,
     )
@@ -180,6 +180,7 @@ def list_own(conn: sqlite3.Connection, user_id: int) -> list[OrderOut]:
 def _admin(row: sqlite3.Row, items: list[OrderItemOut], notes: list[OrderNotificationOut]) -> AdminOrder:
     return AdminOrder(
         **_public(row, items).model_dump(),
+        id=row["id"],
         user_telegram_id=row["user_telegram_id"], username=row["username"],
         first_name=row["first_name"], notified=bool(row["notified"]),
         notify_attempts=row["notify_attempts"], updated_at=row["updated_at"], notifications=notes,

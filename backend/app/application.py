@@ -8,7 +8,7 @@ import contextlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +17,7 @@ from . import errors, notify, routes_admin, routes_public, routes_user
 from .config import REPO_DIR, Settings, validate_settings
 from .db import connect, init_db
 from .ratelimit import build_limiters
+from .storefront import Storefront
 
 
 IMMUTABLE_IMAGE_PREFIXES = ("/uploads/thumbs/", "/uploads/products/")
@@ -137,13 +138,17 @@ def create_app(settings: Settings) -> FastAPI:
     # Storefront: an explicit allowlist of files from the repo root (the root
     # itself also holds backend/, tools/ and import/, which must never be served).
     # Registered last so it cannot shadow /api, /admin or the image mounts.
+    # HTML gets versioned asset URLs; versioned assets are cached for a year
+    # (app/storefront.py), so page changes inside Telegram skip JS/CSS.
+    shop_files = Storefront(REPO_DIR)
+
     @app.get("/", include_in_schema=False)
     @app.get("/{name}", include_in_schema=False)
-    def storefront(name: str = "index.html"):
+    def storefront(request: Request, name: str = "index.html"):
         if name == "admin":  # this route would otherwise swallow the mount's redirect
             return RedirectResponse("/admin/", status_code=308)
         if name not in STOREFRONT_FILES:
             raise HTTPException(status_code=404, detail="Not found")
-        return FileResponse(REPO_DIR / name, headers={"Cache-Control": "no-cache"})
+        return shop_files.response(request, name)
 
     return app
