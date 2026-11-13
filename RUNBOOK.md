@@ -192,3 +192,15 @@ the test suite: a failing test fails the build.
    `30 3 * * * cd /opt/tovarka && docker compose exec -T app python /app/tools/backup.py --db-only >/dev/null`
    → `/srv/tovarka/data/backups/`.
 7. Telegram: as section 8 step 6.
+8. **Troubleshooting** (run in `/opt/tovarka`):
+   - No «Адмінка» link / no order messages: check `grep ADMIN .env` (your
+     numeric IDs, from @userinfobot) and which bot the token belongs to:
+     `source <(grep ^BOT_TOKEN .env); curl -s "https://api.telegram.org/bot$BOT_TOKEN/getMe"`
+     — it must be the bot whose Menu Button opens the shop. After editing
+     `.env`: `docker compose up -d` (recreates the app), close and reopen the
+     Mini App, both admins press Start, then «Надіслати ще раз» on the order.
+   - Status and logs: `docker compose ps`, `docker compose logs --tail 60 app`.
+   - SSH drops when idle: `ssh -o ServerAliveInterval=60 deploy@<ip>`; the
+     containers keep running.
+   - Server login is `deploy` (sudo + docker group); root login and password
+     login are disabled (`/etc/ssh/sshd_config.d/00-hardening.conf`).
