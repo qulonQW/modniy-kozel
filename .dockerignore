@@ -1,0 +1,17 @@
+# Nothing private or bulky goes into the image (mirrors .gitignore).
+.git
+.idea
+.vercel
+node_modules
+**/__pycache__
+**/.pytest_cache
+.env
+backend/.env
+backend/.venv
+backend/data
+backend/uploads
+*.sqlite3
+*.sqlite3-*
+import
+Dockerfile
+compose.yaml

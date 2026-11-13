@@ -161,3 +161,34 @@ in the server admin, not in a local copy.
 - Bot message to admins: `backend/app/notify.py` (`order_message`)
 - initData lifetimes: `backend/app/auth.py` (admin 1 h, shoppers 24 h)
 - Rate limits: `backend/app/ratelimit.py`
+
+## 9. Deploy with Docker (DigitalOcean droplet) — the current way
+
+Two containers from `compose.yaml`: **caddy** (ports 80/443, Let's Encrypt)
+→ **app** (FastAPI, not published, read-only filesystem, non-root uid 10001).
+Code: `/opt/tovarka` (git clone). Data on the host: `/srv/tovarka/data`
+(database + backups) and `/srv/tovarka/uploads` (photos). Settings:
+`/opt/tovarka/.env` (template `deploy/docker/env.example`). The build runs
+the test suite: a failing test fails the build.
+
+1. **Server**: Ubuntu 24.04 droplet, ≥ 1 GB RAM, SSH key login. Install
+   Docker Engine from Docker's apt repository. Firewall: DigitalOcean Cloud
+   Firewall with inbound 22, 80, 443 only (Docker bypasses ufw for published
+   ports, so a cloud firewall is the reliable one).
+2. **Install**:
+   ```bash
+   git clone https://github.com/qulonQW/modniy-kozel.git /opt/tovarka && cd /opt/tovarka
+   cp deploy/docker/env.example .env && chmod 600 .env && nano .env
+   mkdir -p /srv/tovarka/data /srv/tovarka/uploads && chown -R 10001:10001 /srv/tovarka
+   ```
+3. **Data** (once): copy `shop-data.tar.gz` (section 8 step 4) to the server, then
+   `tar -xzf shop-data.tar.gz -C /srv/tovarka/data shop.sqlite3`,
+   `tar -xzf shop-data.tar.gz -C /srv/tovarka uploads`,
+   `chown -R 10001:10001 /srv/tovarka`.
+4. **Start**: `docker compose up -d --build`; `docker compose ps` (app
+   `healthy`), `docker compose logs -f app`.
+5. **Update**: push to `main`, then `bash deploy/docker/update.sh`.
+6. **Nightly DB backup** (root crontab, `crontab -e`):
+   `30 3 * * * cd /opt/tovarka && docker compose exec -T app python /app/tools/backup.py --db-only >/dev/null`
+   → `/srv/tovarka/data/backups/`.
+7. Telegram: as section 8 step 6.

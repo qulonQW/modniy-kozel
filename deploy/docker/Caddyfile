@@ -1,0 +1,13 @@
+# Mounted into the caddy container by compose.yaml. SHOP_HOST comes from .env.
+# Caddy gets and renews the Let's Encrypt certificate itself (ports 80/443 open).
+{$SHOP_HOST} {
+	request_body {
+		max_size 6MB
+	}
+	encode zstd gzip
+	reverse_proxy app:8000
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}

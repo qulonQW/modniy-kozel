@@ -1,0 +1,54 @@
+# Production stack: Caddy (HTTPS, Let's Encrypt) -> app. See RUNBOOK "Deploy with Docker".
+# Settings and secrets: .env next to this file (never committed), see deploy/docker/env.example.
+# Only Caddy publishes ports; the app is reachable only through it.
+
+name: tovarka
+
+services:
+  app:
+    build: .
+    image: tovarka-app:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ENV: prod
+      ALLOWED_ORIGIN: https://${SHOP_HOST:?set SHOP_HOST in .env}
+      DATABASE_PATH: /data/shop.sqlite3
+      UPLOADS_DIR: /uploads
+    volumes:
+      - ${DATA_DIR:-/srv/tovarka}/data:/data
+      - ${DATA_DIR:-/srv/tovarka}/uploads:/uploads
+    # Hardening: read-only filesystem except the two data mounts, no Linux
+    # capabilities, no privilege escalation.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging: &logging
+      driver: json-file
+      options: {max-size: "10m", max-file: "5"}
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SHOP_HOST: ${SHOP_HOST}
+    volumes:
+      - ./deploy/docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # certificates: keep, or Let's Encrypt rate limits bite
+      - caddy_config:/config
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    logging: *logging
+
+volumes:
+  caddy_data:
+  caddy_config:
